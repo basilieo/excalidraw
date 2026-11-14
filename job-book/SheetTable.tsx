@@ -96,7 +96,7 @@ const COLUMNS: Col[] = [
   },
   {
     key: "discipline",
-    label: "Discipline",
+    label: "Phase",
     width: 140,
     kind: "select",
     options: DISCIPLINES.map((d) => ({

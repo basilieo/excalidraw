@@ -65,6 +65,33 @@ export const describeTable = (anchor: ExcalidrawElement) => {
   return { data, display, layout: layoutTable(data, display) };
 };
 
+/** the anchor element for a table: a white rectangle holding its data */
+export const tableAnchor = (
+  data: TableData,
+  x: number,
+  y: number,
+  frameId: string | null = null,
+): ExcalidrawElement => {
+  const layout = layoutTable(data, tableDisplay(data));
+  const [anchor] = convertToExcalidrawElements([
+    {
+      type: "rectangle",
+      x,
+      y,
+      width: layout.width,
+      height: layout.height,
+      strokeColor: "transparent",
+      backgroundColor: "#ffffff",
+      fillStyle: "solid",
+      strokeWidth: 1,
+      roughness: 0,
+      roundness: null,
+      customData: { [TABLE_KEY]: data, [LAID_KEY]: layout.width },
+    } as any,
+  ]);
+  return { ...anchor, frameId } as ExcalidrawElement;
+};
+
 /** put a new table in the middle of the view */
 export const createTable = (
   api: ExcalidrawImperativeAPI,
@@ -77,22 +104,11 @@ export const createTable = (
   );
   const layout = layoutTable(data, tableDisplay(data));
   const { scrollX, scrollY, width, height, zoom } = api.getAppState();
-  const [anchor] = convertToExcalidrawElements([
-    {
-      type: "rectangle",
-      x: width / 2 / zoom.value - scrollX - layout.width / 2,
-      y: height / 2 / zoom.value - scrollY - layout.height / 2,
-      width: layout.width,
-      height: layout.height,
-      strokeColor: "transparent",
-      backgroundColor: "#ffffff",
-      fillStyle: "solid",
-      strokeWidth: 1,
-      roughness: 0,
-      roundness: null,
-      customData: { [TABLE_KEY]: data, [LAID_KEY]: layout.width },
-    } as any,
-  ]);
+  const anchor = tableAnchor(
+    data,
+    width / 2 / zoom.value - scrollX - layout.width / 2,
+    height / 2 / zoom.value - scrollY - layout.height / 2,
+  );
   api.updateScene({
     elements: [...api.getSceneElementsIncludingDeleted(), anchor],
     captureUpdate: CaptureUpdateAction.IMMEDIATELY,

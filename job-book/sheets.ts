@@ -27,15 +27,21 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 export type Discipline = { code: string; name: string; color: string };
 
-// Codes are the sheet number prefix (S-101). Edit this list to change the
-// disciplines; a sheet whose code is no longer listed falls back to General.
-// The fab library reads the same list (catalog/backend/jobbook/sheets.py).
+// The phases of a job, which group and color the sheets (shown as "Phase";
+// called disciplines in the code). They are NP's job book rows, in their Miro
+// colors. Codes are the sheet number prefix (PR-101) and are what's stored,
+// so a name or color can change freely; a code no longer listed falls back
+// to the first. General and Reference come last, for anything else and for
+// imported PDFs. The fab library reads the same list
+// (catalog/backend/jobbook/sheets.py).
 export const DISCIPLINES: Discipline[] = [
+  { code: "OV", name: "Project Overview", color: "#f2b705" },
+  { code: "PP", name: "Pre-Production", color: "#74c0fc" },
+  { code: "PR", name: "Production", color: "#f03e3e" },
+  { code: "LG", name: "Logistics", color: "#fd7e14" },
+  { code: "PI", name: "Pre-Install", color: "#adb5bd" },
+  { code: "IN", name: "Install", color: "#4263eb" },
   { code: "G", name: "General", color: "#868e96" },
-  { code: "D", name: "Design", color: "#1971c2" },
-  { code: "S", name: "Shop drawings", color: "#e8590c" },
-  { code: "F", name: "Finishes", color: "#9c36b5" },
-  { code: "I", name: "Install", color: "#2f9e44" },
   { code: "R", name: "Reference", color: "#0c8599" },
 ];
 

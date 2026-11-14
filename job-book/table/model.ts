@@ -86,6 +86,30 @@ export const newTable = (rows: number, cols: number): TableData => {
   };
 };
 
+/** a table from column names (and widths) and rows of cell text */
+export const tableFrom = (
+  columns: (string | { name: string; width?: number })[],
+  rows: string[][] = [],
+): TableData => {
+  const cols: Column[] = columns.map((c) => {
+    const { name, width } =
+      typeof c === "string" ? { name: c, width: undefined } : c;
+    return { id: newId(), name, width: width ?? DEFAULT_COL_WIDTH };
+  });
+  return {
+    columns: cols,
+    rows: rows.map((r) => ({
+      id: newId(),
+      cells: Object.fromEntries(
+        r.map((v, i) => [cols[i]?.id, v]).filter(([id, v]) => id && v),
+      ),
+    })),
+    styles: {},
+    sort: null,
+    filters: [],
+  };
+};
+
 export const readTable = (raw: unknown): TableData | null => {
   if (!raw || typeof raw !== "object") {
     return null;

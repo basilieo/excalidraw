@@ -171,7 +171,7 @@ const SheetEditor = ({
           </Field>
         </div>
         <div className="jb-row">
-          <Field label="Discipline">
+          <Field label="Phase">
             <select
               data-ref="sheet-discipline"
               value={discipline.code}
@@ -434,7 +434,7 @@ const Insert = ({ discipline }: { discipline: string }) => {
         <select
           value={newDiscipline}
           onChange={(e) => setNewDiscipline(e.target.value)}
-          aria-label="Discipline of the new sheet"
+          aria-label="Phase of the new sheet"
         >
           {DISCIPLINES.map((d) => (
             <option key={d.code} value={d.code}>
@@ -713,7 +713,7 @@ export const SheetsPanel = ({
           <SheetEditor sheet={selected} sheets={sheets} canEdit={canEdit} />
         ) : (
           <>
-            {canEdit && <Insert discipline="S" />}
+            {canEdit && <Insert discipline="OV" />}
             <BoardSettingsPanel canEdit={canEdit} />
           </>
         )}

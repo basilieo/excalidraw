@@ -23,6 +23,7 @@ import {
 import { Connectors } from "./Connectors";
 import { SheetTable, SheetTableViewContext } from "./SheetTable";
 import { SyncStatus } from "./SyncStatus";
+import { buildNpJobBook } from "./templates/npJobBook";
 import { sendThumbnailSoon } from "./thumbnail";
 import { createTable, syncTables } from "./table/render";
 import { TableLayer } from "./table/TableLayer";
@@ -619,6 +620,28 @@ const Editor = ({
             {config.canEdit && config.templateUrl && (
               <MainMenu.Item onSelect={saveAsTemplate}>
                 Save as template
+              </MainMenu.Item>
+            )}
+            {config.canEdit && (
+              <MainMenu.Item
+                data-ref="lay-out-np-job-book"
+                onSelect={() => {
+                  if (!api) {
+                    return;
+                  }
+                  if (
+                    api.getSceneElements().length &&
+                    !window.confirm(
+                      "This board already has things on it. Lay out the NP job book beside them?",
+                    )
+                  ) {
+                    return;
+                  }
+                  updateSettings({ paper: "a3", orientation: "landscape" });
+                  buildNpJobBook(api, settingsRef.current);
+                }}
+              >
+                Lay out the NP job book
               </MainMenu.Item>
             )}
             <MainMenu.DefaultItems.SaveToActiveFile />
