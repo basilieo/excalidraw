@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { isDocument } from "./doc/render";
 import { isTableAnchor } from "./table/render";
+import { isToc } from "./toc/render";
 
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
@@ -39,7 +40,7 @@ export const kindOf = (el: ExcalidrawElement): SelectKind | null => {
   if (isTableAnchor(el)) {
     return "tables";
   }
-  if (isDocument(el)) {
+  if (isDocument(el) || isToc(el)) {
     return "documents";
   }
   switch (el.type) {

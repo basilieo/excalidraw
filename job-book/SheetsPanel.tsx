@@ -436,11 +436,10 @@ const SheetRow = ({
   );
 };
 
-/** a new sheet: a camera, framing a view of the board */
+/** a new sheet: a frame, its edges running past the corners */
 const SheetPlusIcon = (
-  <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M2.5 7a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h5.4l1.3 2h2A1.5 1.5 0 0 1 17.5 7v7.5A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z" />
-    <circle cx="10" cy="10.5" r="3" />
+  <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+    <path d="M5.5 2.5v15M14.5 2.5v15M2.5 5.5h15M2.5 14.5h15" />
   </svg>
 );
 const TableViewIcon = (

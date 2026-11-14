@@ -28,14 +28,21 @@ import { sendThumbnailSoon } from "./thumbnail";
 import { createTable, syncTables } from "./table/render";
 import { addDocument, DocButton, DocIcon, DocLayer } from "./doc/DocLayer";
 import { syncDocs } from "./doc/render";
+import { createToc, syncTocs } from "./toc/render";
 import { SelectionFilterButton, useSelectionFilter } from "./SelectionFilter";
 import { PrintHost } from "./PrintDialog";
 
-/** the sheet index: a panel sliding in from the right */
+/** the sheets: binder dividers, a tab standing out of each */
 const SidebarIcon = (
-  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" aria-hidden="true">
-    <rect x="3" y="4" width="18" height="16" rx="2" />
-    <path d="M14.5 4v16M17 8h1.5M17 11h1.5M17 14h1.5" strokeLinecap="round" />
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M4.5 3.5h10a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z" />
+    <path d="M15.5 5h3.5a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-3.5M15.5 12.5h3.5a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-3.5" />
+  </svg>
+);
+/** a table of contents: a list with dots for its entries */
+const ContentsIcon = (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden="true">
+    <path d="M4 6h.01M4 12h.01M4 18h.01M8 6h12M8 12h12M8 18h8" />
   </svg>
 );
 /** the shape library: books on a shelf */
@@ -324,6 +331,7 @@ const Editor = ({
           if (!api.isDestroyed) {
             syncTables(api, { moving: true });
             syncDocs(api, { moving: true });
+            syncTocs(api, { moving: true });
           }
         });
       }
@@ -345,6 +353,7 @@ const Editor = ({
             syncTitleBlocks(api, config.project, settingsRef.current.colorBy);
             syncTables(api);
             syncDocs(api);
+            syncTocs(api);
           }
         });
       }
@@ -381,6 +390,7 @@ const Editor = ({
       syncTitleBlocks(editor, config.project, settingsRef.current.colorBy);
       syncTables(editor);
       syncDocs(editor);
+      syncTocs(editor);
       enforceSheetSizes(editor, lockedSheets.current);
       // what loaded counts as saved, even after title blocks are brought up
       // to date. The panel and the zoom wait a moment: the editor is still
@@ -646,6 +656,18 @@ const Editor = ({
                   }}
                 >
                   Document
+                </MainMenu.Item>
+                <MainMenu.Item
+                  icon={ContentsIcon}
+                  data-ref="add-contents"
+                  onSelect={() => {
+                    close();
+                    if (api) {
+                      createToc(api);
+                    }
+                  }}
+                >
+                  Table of contents
                 </MainMenu.Item>
                 <MainMenu.Item
                   icon={TableIcon}

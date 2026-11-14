@@ -11,9 +11,10 @@ import {
 } from "@excalidraw/excalidraw";
 
 import { paperPx } from "../paper";
-import { DISCIPLINES, getGroups, sheetColor, viewportOffsets } from "../sheets";
+import { sheetColor, viewportOffsets } from "../sheets";
 import { tableFrom } from "../table/model";
 import { syncTables, tableAnchor } from "../table/render";
+import { syncTocs, tocAnchor } from "../toc/render";
 
 import type { BoardSettings } from "../settings";
 import type { SheetData } from "../sheets";
@@ -39,7 +40,9 @@ type Item =
       rows: string[][];
       caption?: string;
     }
-  | { kind: "chart" };
+  | { kind: "chart" }
+  /** the live table of contents (toc/render) */
+  | { kind: "contents"; x: number; y: number; w: number };
 
 type SheetSpec = { n: string; title: string; items?: Item[] };
 
@@ -453,35 +456,15 @@ export const buildNpJobBook = (
   const GAP = 240;
   const ROW_GAP = 460;
 
-  // the table of contents lists every sheet
-  const toc = ROWS.flatMap((r) =>
-    r.sheets.map((s) => [
-      s.n,
-      s.title,
-      (getGroups().find((d) => d.code === r.phase) ?? DISCIPLINES.find((d) => d.code === r.phase)!).name,
-      "",
-    ]),
-  );
-  ROWS[0].sheets[1].items = [
-    {
-      kind: "table",
-      x: 60,
-      y: 50,
-      columns: [
-        { name: "#", width: 60 },
-        { name: "Sheet", width: 330 },
-        { name: "Phase", width: 200 },
-        { name: "Status", width: 150 },
-      ],
-      rows: toc,
-    },
-  ];
+  // the table of contents is the live one: it lists the sheets as they are
+  ROWS[0].sheets[1].items = [{ kind: "contents", x: 60, y: 50, w: 980 }];
   ROWS[4].sheets[6].items = [
     { kind: "text", x: 60, y: 50, text: SITE_VISIT_CHECKLIST[0], size: 24 },
     { kind: "text", x: 820, y: 50, text: SITE_VISIT_CHECKLIST[1], size: 24 },
   ];
 
   const skeletons: any[] = [];
+  const contents: { frameId: string; x: number; y: number; w: number }[] = [];
   const tables: {
     frameId: string;
     x: number;
@@ -554,6 +537,8 @@ export const buildNpJobBook = (
             y: fy + item.y,
             data: tableFrom(item.columns, item.rows),
           });
+        } else if (item.kind === "contents") {
+          contents.push({ frameId, x: fx + item.x, y: fy + item.y, w: item.w });
         } else if (item.kind === "chart") {
           // who answers to whom: LV → LMI → NP, and NP on to the trades
           const node = (key: string, text: string, ny: number) => {
@@ -651,14 +636,16 @@ export const buildNpJobBook = (
   const built = convertToExcalidrawElements(skeletons, {
     regenerateIds: false,
   });
-  const anchors: ExcalidrawElement[] = tables.map((t) =>
-    tableAnchor(t.data, t.x, t.y, t.frameId),
-  );
+  const anchors: ExcalidrawElement[] = [
+    ...tables.map((t) => tableAnchor(t.data, t.x, t.y, t.frameId)),
+    ...contents.map((c) => tocAnchor(c.x, c.y, c.w, c.frameId)),
+  ];
   api.updateScene({
     elements: [...api.getSceneElementsIncludingDeleted(), ...built, ...anchors],
     captureUpdate: CaptureUpdateAction.IMMEDIATELY,
   });
   syncTables(api);
+  syncTocs(api);
   window.setTimeout(() => {
     api.setViewport({
       target: api.getSceneElements(),
