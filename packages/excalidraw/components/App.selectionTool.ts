@@ -1066,13 +1066,24 @@ export class AppSelectionTool {
             shouldReuseSelection = false;
           }
         }
-        const elementsWithinSelection = this.app.state.selectionElement
+        const selectionBox = this.app.state.selectionElement;
+        const elementsWithinSelection = selectionBox
           ? getElementsWithinSelection(
               elements,
-              this.app.state.selectionElement,
+              selectionBox,
               this.app.scene.getNonDeletedElementsMap(),
               false,
-              this.app.state.boxSelectionMode,
+              // job book (fork): window or crossing, by drag direction
+              this.app.props.directionalBoxSelection
+                ? (selectionBox.customData as any)?.crossing
+                  ? "overlap"
+                  : "contain"
+                : this.app.state.boxSelectionMode,
+            ).filter(
+              // job book (fork): the selection filter
+              (el) =>
+                !this.app.props.isElementSelectable ||
+                this.app.props.isElementSelectable(el),
             )
           : [];
 

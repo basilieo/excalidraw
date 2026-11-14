@@ -457,6 +457,26 @@ export const withSavedContext = (
   }
 };
 
+/**
+ * job book (fork): draw a shape with its stroke at least about one device
+ * pixel wide. Zoomed far out, a line narrower than that breaks up into
+ * specks (curves worst of all); held at a pixel it stays a line.
+ */
+const drawVisible = (
+  rc: RoughCanvas,
+  context: CanvasRenderingContext2D,
+  shape: Parameters<RoughCanvas["draw"]>[0],
+) => {
+  const t = context.getTransform?.();
+  const scale = t ? Math.hypot(t.a, t.b) : 1;
+  const min = scale > 0 ? 0.9 / scale : 0;
+  if (shape && shape.options && shape.options.strokeWidth < min) {
+    rc.draw({ ...shape, options: { ...shape.options, strokeWidth: min } });
+    return;
+  }
+  rc.draw(shape);
+};
+
 const drawElementOnCanvas = (
   element: NonDeletedExcalidrawElement,
   rc: RoughCanvas,
@@ -506,7 +526,7 @@ const drawElementOnCanvas = (
       context.lineJoin = "round";
       context.lineCap = "round";
 
-      rc.draw(ShapeCache.generateElementShape(element, renderConfig));
+      drawVisible(rc, context, ShapeCache.generateElementShape(element, renderConfig));
       break;
     }
     case "arrow":
@@ -516,7 +536,7 @@ const drawElementOnCanvas = (
 
       ShapeCache.generateElementShape(element, renderConfig).forEach(
         (shape) => {
-          rc.draw(shape);
+          drawVisible(rc, context, shape);
         },
       );
       break;
@@ -1014,9 +1034,19 @@ export const renderSelectionElement = (
   // from right to left
   const offset = 0.5 / appState.zoom.value;
 
+  // job book (fork): a crossing box (dragged right to left) is dashed and
+  // green, as in Rhino and AutoCAD
+  const crossing = !!(element.customData as any)?.crossing;
+  if (crossing) {
+    context.fillStyle = applyDarkModeFilter(
+      "rgba(0, 160, 60, 0.06)",
+      appState.theme === THEME.DARK,
+    );
+    context.setLineDash([5 / appState.zoom.value, 4 / appState.zoom.value]);
+  }
   context.fillRect(offset, offset, element.width, element.height);
   context.lineWidth = 1 / appState.zoom.value;
-  context.strokeStyle = selectionColor;
+  context.strokeStyle = crossing ? "#2f9e44" : selectionColor;
   context.strokeRect(offset, offset, element.width, element.height);
 
   context.restore();

@@ -363,7 +363,7 @@ export const syncTables = (
 ): boolean => {
   const all = api.getSceneElementsIncludingDeleted();
   if (moving) {
-    return followDrag(api, all);
+    return followAnchors(api, all, PART_KEY, isTableAnchor);
   }
   const byId = new Map(all.map((el) => [el.id, el]));
   const anchors = all.filter(isTableAnchor);
@@ -453,17 +453,23 @@ export const syncTables = (
 };
 
 /**
- * While a table is being dragged, only carry its drawing along with it. The
- * anchor itself is the editor's to move; everything else waits for the drop.
+ * While a table (or a document) is being dragged, only carry its drawing
+ * along with it. The anchor itself is the editor's to move; everything else
+ * waits for the drop. Parts say which anchor they belong to under `partKey`,
+ * with where it was when they were last placed.
  */
-const followDrag = (
+export const followAnchors = (
   api: ExcalidrawImperativeAPI,
   all: readonly ExcalidrawElement[],
+  partKey: string,
+  isAnchor: (el: ExcalidrawElement) => boolean,
 ): boolean => {
-  const anchors = new Map(all.filter(isTableAnchor).map((a) => [a.id, a]));
+  const anchors = new Map(all.filter(isAnchor).map((a) => [a.id, a]));
   const moved = new Map<string, ExcalidrawElement>();
   for (const el of all) {
-    const info = partInfo(el);
+    const info = (el.customData as any)?.[partKey] as
+      | { anchorId: string; ax: number; ay: number }
+      | undefined;
     const anchor = info && !el.isDeleted ? anchors.get(info.anchorId) : null;
     if (!info || !anchor) {
       continue;
@@ -480,7 +486,7 @@ const followDrag = (
         y: el.y + dy,
         customData: {
           ...el.customData,
-          [PART_KEY]: { ...info, ax: anchor.x, ay: anchor.y },
+          [partKey]: { ...info, ax: anchor.x, ay: anchor.y },
         },
       }),
     );

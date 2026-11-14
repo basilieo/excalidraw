@@ -98,6 +98,8 @@
     "strip-ansi": "6.0.1"
   },
   "dependencies": {
-    "pdfjs-dist": "4.10.38"
+    "jspdf": "2.5.2",
+    "pdfjs-dist": "4.10.38",
+    "svg2pdf.js": "2.2.4"
   }
 }

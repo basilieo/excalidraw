@@ -26,6 +26,24 @@ import { SyncStatus } from "./SyncStatus";
 import { buildNpJobBook } from "./templates/npJobBook";
 import { sendThumbnailSoon } from "./thumbnail";
 import { createTable, syncTables } from "./table/render";
+import { addDocument, DocButton, DocIcon, DocLayer } from "./doc/DocLayer";
+import { syncDocs } from "./doc/render";
+import { SelectionFilterButton, useSelectionFilter } from "./SelectionFilter";
+import { PrintHost } from "./PrintDialog";
+
+/** the sheet index: a panel sliding in from the right */
+const SidebarIcon = (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M14.5 4v16M17 8h1.5M17 11h1.5M17 14h1.5" strokeLinecap="round" />
+  </svg>
+);
+/** the shape library: books on a shelf */
+const LibraryIcon = (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M4 4.5h3.5v15H4zM9.5 4.5H13v15H9.5zM15.2 5.3l3.3-.9 3 14.5-3.3.9z" />
+  </svg>
+);
 import { TableLayer } from "./table/TableLayer";
 import { importPdf, isPdf } from "./pdf";
 import { DEFAULT_SETTINGS, readSettings, SettingsContext } from "./settings";
@@ -186,6 +204,7 @@ const Editor = ({
   );
   useHandleLibrary({ excalidrawAPI: api, adapter: libraryAdapter });
   const [status, setStatus] = useState<Status>("loading");
+  const selectionFilter = useSelectionFilter();
   const [theme, setTheme] = useState(readTheme);
   const statusRef = useRef<Status>("loading");
   const version = useRef(0);
@@ -304,6 +323,7 @@ const Editor = ({
           moveQueued.current = false;
           if (!api.isDestroyed) {
             syncTables(api, { moving: true });
+            syncDocs(api, { moving: true });
           }
         });
       }
@@ -324,6 +344,7 @@ const Editor = ({
             }
             syncTitleBlocks(api, config.project, settingsRef.current.colorBy);
             syncTables(api);
+            syncDocs(api);
           }
         });
       }
@@ -359,6 +380,7 @@ const Editor = ({
       }
       syncTitleBlocks(editor, config.project, settingsRef.current.colorBy);
       syncTables(editor);
+      syncDocs(editor);
       enforceSheetSizes(editor, lockedSheets.current);
       // what loaded counts as saved, even after title blocks are brought up
       // to date. The panel and the zoom wait a moment: the editor is still
@@ -589,7 +611,17 @@ const Editor = ({
           }}
           // a mouse wheel notch zooms about 7%, the same at any zoom
           mouseWheelZoomRate={0.001}
-          renderToolbarExtras={() => (config.canEdit ? <AttachButton /> : null)}
+          directionalBoxSelection
+          simpleTextControls
+          isElementSelectable={selectionFilter.isSelectable}
+          renderToolbarExtras={() =>
+            config.canEdit ? (
+              <>
+                <DocButton />
+                <AttachButton />
+              </>
+            ) : null
+          }
           renderExtraToolsItems={(close) =>
             config.canEdit ? (
               <>
@@ -602,6 +634,18 @@ const Editor = ({
                   }}
                 >
                   Attach PDF or image…
+                </MainMenu.Item>
+                <MainMenu.Item
+                  icon={DocIcon}
+                  data-ref="add-document-menu"
+                  onSelect={() => {
+                    close();
+                    if (api) {
+                      addDocument(api);
+                    }
+                  }}
+                >
+                  Document
                 </MainMenu.Item>
                 <MainMenu.Item
                   icon={TableIcon}
@@ -622,11 +666,10 @@ const Editor = ({
             <div className="jb-topright">
               <Sidebar.Trigger
                 name={SHEETS_SIDEBAR}
-                title="Sheet index"
+                title="Sheets"
                 className="jb-trigger"
-              >
-                Sheets
-              </Sidebar.Trigger>
+                icon={SidebarIcon}
+              />
             </div>
           )}
         >
@@ -680,9 +723,9 @@ const Editor = ({
             tab="library"
             title="Shape library"
             className="jb-trigger"
-          >
-            Library
-          </DefaultSidebar.Trigger>
+            icon={LibraryIcon}
+          />
+          <PrintHost boardName={config.name} />
           <SheetsPanel
             boardName={config.name}
             listUrl={config.listUrl}
@@ -692,10 +735,15 @@ const Editor = ({
           {config.canEdit && <AttachPicker />}
           <Footer>
             <SyncStatus status={status} label={STATUS_LABEL[status]} />
+            <SelectionFilterButton
+              off={selectionFilter.off}
+              setOff={selectionFilter.setOff}
+            />
           </Footer>
         </Excalidraw>
         {tableView && <SheetTable onClose={() => setTableView(false)} />}
         <TableLayer canEdit={config.canEdit} />
+        <DocLayer canEdit={config.canEdit} />
         {config.canEdit && <Connectors />}
       </SheetTableViewContext.Provider>
     </SettingsContext.Provider>

@@ -34,7 +34,10 @@ export const actionSelectAll = register({
         (element) =>
           !element.isDeleted &&
           !(isTextElement(element) && element.containerId) &&
-          !element.locked,
+          !element.locked &&
+          // job book (fork): the selection filter
+          (!app.props.isElementSelectable ||
+            app.props.isElementSelectable(element)),
       )
       .reduce((map: Record<ExcalidrawElement["id"], true>, element) => {
         map[element.id] = true;

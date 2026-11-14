@@ -6090,6 +6090,13 @@ class App extends React.Component<AppProps, AppState> {
                   !(isTextElement(element) && element.containerId)),
             )
     )
+      // job book (fork): the selection filter
+      .filter(
+        (el) =>
+          !this.props.isElementSelectable ||
+          this.state.activeTool.type !== "selection" ||
+          this.props.isElementSelectable(el),
+      )
       .filter((el) => this.hitElement(x, y, el))
       .filter((element) => !this.isClippedByFrameAt(x, y, element))
       .filter((el) => {
@@ -11150,6 +11157,12 @@ class App extends React.Component<AppProps, AppState> {
         renderEnvironment: this.renderEnvironment,
         informMutation: false,
       });
+      // job book (fork): dragged right to left, the box is a crossing box
+      if (this.props.directionalBoxSelection) {
+        (selectionElement as any).customData = {
+          crossing: pointerCoords.x < pointerDownState.origin.x,
+        };
+      }
       return;
     }
 

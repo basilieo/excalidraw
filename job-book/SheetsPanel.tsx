@@ -20,6 +20,7 @@ import {
 import { useSettings } from "./settings";
 import { useSheetTableView } from "./SheetTable";
 import { useSheets } from "./useSheets";
+import { openPrint } from "./PrintDialog";
 import {
   addSheet,
   DISCIPLINES,
@@ -435,9 +436,23 @@ const SheetRow = ({
   );
 };
 
+/** a new sheet: a camera, framing a view of the board */
 const SheetPlusIcon = (
   <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M11.5 2.5H5a1.5 1.5 0 0 0-1.5 1.5v12A1.5 1.5 0 0 0 5 17.5h4M11.5 2.5l4 4M11.5 2.5v4h4M15.5 6.5V10M15 13v5M12.5 15.5h5" />
+    <path d="M2.5 7a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h5.4l1.3 2h2A1.5 1.5 0 0 1 17.5 7v7.5A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z" />
+    <circle cx="10" cy="10.5" r="3" />
+  </svg>
+);
+const TableViewIcon = (
+  <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+    <rect x="2.5" y="3.5" width="15" height="13" rx="1.5" />
+    <path d="M2.5 7.5h15M2.5 11.5h15M7.5 3.5v13" />
+  </svg>
+);
+const PrintIcon = (
+  <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M5.5 7.5V2.5h9v5M5.5 14H4a1.5 1.5 0 0 1-1.5-1.5V9A1.5 1.5 0 0 1 4 7.5h12A1.5 1.5 0 0 1 17.5 9v3.5A1.5 1.5 0 0 1 16 14h-1.5" />
+    <path d="M5.5 11.5h9v6h-9z" />
   </svg>
 );
 const GroupPlusIcon = (
@@ -519,7 +534,41 @@ const suggestCode = (name: string, taken: string[]) => {
   return code;
 };
 
-/** the small menus under the panel's + Sheet and + Group buttons */
+/** under the search: table view, print, a new sheet, a new group */
+const SheetActions = ({
+  canEdit,
+  tableView,
+  onTableView,
+}: {
+  canEdit: boolean;
+  tableView: boolean;
+  onTableView: () => void;
+}) => (
+  <div className="jb-actions">
+    <button
+      type="button"
+      className={`jb-icon-btn${tableView ? " is-on" : ""}`}
+      data-ref="sheet-table-view"
+      title="Table view"
+      aria-pressed={tableView}
+      onClick={onTableView}
+    >
+      {TableViewIcon}
+    </button>
+    <button
+      type="button"
+      className="jb-icon-btn"
+      data-ref="print"
+      title="Print"
+      onClick={openPrint}
+    >
+      {PrintIcon}
+    </button>
+    {canEdit && <AddMenus />}
+  </div>
+);
+
+/** the small menus under the panel's new sheet and new group buttons */
 const AddMenus = () => {
   const api = useExcalidrawAPI();
   const { settings } = useSettings();
@@ -843,31 +892,10 @@ export const SheetsPanel = ({
             {isTemplate && <span className="jb-template">template</span>}
             {boardName}
           </div>
-          <div className="jb-views" role="group" aria-label="Sheet index view">
-            <button
-              type="button"
-              className={view === "list" ? "is-on" : ""}
-              aria-pressed={view === "list"}
-              onClick={() => setView("list")}
-            >
-              List
-            </button>
-            <button
-              type="button"
-              data-ref="sheet-table-view"
-              className={view === "table" ? "is-on" : ""}
-              aria-pressed={view === "table"}
-              onClick={() => setView("table")}
-              title="Every sheet as a row: edit names, revisions, statuses and more in bulk"
-            >
-              Table
-            </button>
-          </div>
         </div>
       </Sidebar.Header>
 
       <div className="jb-panel">
-        <div className="jb-searchrow">
         <input
           className="jb-search"
           type="search"
@@ -877,8 +905,11 @@ export const SheetsPanel = ({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        {canEdit && <AddMenus />}
-        </div>
+        <SheetActions
+          canEdit={canEdit}
+          tableView={view === "table"}
+          onTableView={() => setView(view === "table" ? "list" : "table")}
+        />
 
         <div className="jb-index" data-ref="sheet-index">
           {!sheets.length && <p className="jb-empty">No sheets yet.</p>}

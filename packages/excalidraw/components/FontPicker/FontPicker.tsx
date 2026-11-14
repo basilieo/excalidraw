@@ -207,6 +207,8 @@ interface FontPickerProps {
   onLeave: () => void;
   onPopupChange: (open: boolean) => void;
   compactMode?: boolean;
+  /** job book (fork): just a dropdown, named for the font */
+  selectorMode?: boolean;
 }
 
 export const FontPicker = React.memo(
@@ -221,6 +223,7 @@ export const FontPicker = React.memo(
     onLeave,
     onPopupChange,
     compactMode = false,
+    selectorMode = false,
   }: FontPickerProps) => {
     const onSelectCallback = useCallback(
       (value: number | false) => {
@@ -257,7 +260,7 @@ export const FontPicker = React.memo(
             "FontPicker__container--compact": compactMode,
           })}
         >
-          {!compactMode && (
+          {!compactMode && !selectorMode && (
             <FontTopPicks
               picks={picks}
               selectedFontFamily={selectedFontFamily}
@@ -266,12 +269,13 @@ export const FontPicker = React.memo(
               onReset={isTopPicksCustomizable ? resetTopPicks : undefined}
             />
           )}
-          {!compactMode && <ButtonSeparator />}
+          {!compactMode && !selectorMode && <ButtonSeparator />}
           <Popover.Root open={isOpened} onOpenChange={onPopupChange}>
             <FontPickerTrigger
               selectedFontFamily={selectedFontFamily}
               isOpened={isOpened}
               compactMode={compactMode}
+              selectorMode={selectorMode}
             />
             {isOpened && (
               <FontPickerList
@@ -299,5 +303,6 @@ export const FontPicker = React.memo(
     prev.selectedFontFamily === next.selectedFontFamily &&
     prev.hoveredFontFamily === next.hoveredFontFamily &&
     prev.topPicks === next.topPicks &&
-    prev.compactMode === next.compactMode,
+    prev.compactMode === next.compactMode &&
+    prev.selectorMode === next.selectorMode,
 );

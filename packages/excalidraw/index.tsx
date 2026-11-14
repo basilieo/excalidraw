@@ -87,6 +87,9 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
     renderToolbarExtras,
     renderExtraToolsItems,
     mouseWheelZoomRate,
+    directionalBoxSelection,
+    simpleTextControls,
+    isElementSelectable,
     langCode = defaultLang.code,
     viewModeEnabled,
     interaction,
@@ -233,6 +236,9 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
           renderToolbarExtras={renderToolbarExtras}
           renderExtraToolsItems={renderExtraToolsItems}
           mouseWheelZoomRate={mouseWheelZoomRate}
+          directionalBoxSelection={directionalBoxSelection}
+          simpleTextControls={simpleTextControls}
+          isElementSelectable={isElementSelectable}
           langCode={langCode}
           viewModeEnabled={viewModeEnabled}
           interaction={interaction}

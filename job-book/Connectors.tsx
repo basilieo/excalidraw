@@ -87,7 +87,9 @@ const target = (
     appState.isRotating ||
     appState.editingTextElement ||
     appState.newElement ||
-    appState.viewModeEnabled
+    appState.viewModeEnabled ||
+    // writing in a document
+    document.querySelector(".jb-doc-editor")
   ) {
     return null;
   }

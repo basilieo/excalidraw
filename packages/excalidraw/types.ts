@@ -991,6 +991,24 @@ export interface ExcalidrawProps {
    * faster when zoomed out. Pinch and ctrl/cmd+wheel are unaffected.
    */
   mouseWheelZoomRate?: number;
+  /**
+   * job book (fork): box selection the way Rhino and AutoCAD do it. Dragged
+   * left to right, the box is a window and selects only what it wholly
+   * contains; dragged right to left, it is a crossing box (drawn dashed)
+   * and also selects whatever it touches.
+   */
+  directionalBoxSelection?: boolean;
+  /**
+   * job book (fork): plainer text controls. The font is one dropdown (no
+   * strip of font buttons), and font size buttons show their size under
+   * the icon, with a box to type any size.
+   */
+  simpleTextControls?: boolean;
+  /**
+   * job book (fork): a selection filter. Elements it turns down can't be
+   * clicked, boxed or select-all'ed into the selection.
+   */
+  isElementSelectable?: (element: ExcalidrawElement) => boolean;
   /** job book (fork): extra buttons at the end of the main toolbar */
   renderToolbarExtras?: () => React.ReactNode;
   /**

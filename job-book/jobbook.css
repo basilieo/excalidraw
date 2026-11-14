@@ -1075,3 +1075,360 @@ body.jb-table-format .excalidraw .App-menu__left {
   color: var(--color-gray-50, #999);
   cursor: pointer;
 }
+
+/* documents: the markdown editor over a document (doc/DocLayer) */
+
+.jb-doc-editor {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.jb-doc-text {
+  position: fixed;
+  box-sizing: border-box;
+  margin: 0;
+  border: 2px solid var(--color-primary, #6965db);
+  border-radius: 8px;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  background: #ffffff;
+  color: #1e1e1e;
+  font-family: Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  tab-size: 2;
+  pointer-events: auto;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+}
+.jb-doc-editor.is-dark .jb-doc-text {
+  background: #1c1c21;
+  color: #e3e3e8;
+}
+
+/* the selection filter in the bottom bar (SelectionFilter) */
+
+.jb-selfilter {
+  position: relative;
+}
+.jb-selfilter-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--border-radius-lg, 8px);
+  background: var(--island-bg-color, #fff);
+  box-shadow: var(--shadow-island, 0 1px 5px rgba(0, 0, 0, 0.15));
+  color: var(--icon-fill-color, #1b1b1f);
+  cursor: pointer;
+}
+.jb-selfilter-btn:hover {
+  background: var(--button-hover-bg, #f1f0ff);
+}
+.jb-selfilter-btn.is-open,
+.jb-selfilter-btn.is-filtering {
+  background: var(--color-surface-primary-container, #e0dfff);
+  color: var(--color-primary-darker, #5b57d1);
+}
+.jb-selfilter-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 10;
+  min-width: 12rem;
+  padding: 0.4rem;
+  border-radius: var(--border-radius-lg, 8px);
+  background: var(--island-bg-color, #fff);
+  border: 1px solid var(--default-border-color, #dee2e6);
+  box-shadow: var(--shadow-island, 0 2px 12px rgba(0, 0, 0, 0.16));
+  color: var(--text-primary-color, #1e1e1e);
+  font-size: 0.8rem;
+}
+.jb-selfilter-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.jb-selfilter-item:hover {
+  background: var(--button-hover-bg, rgba(0, 0, 0, 0.05));
+}
+.jb-selfilter-foot {
+  display: flex;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--default-border-color, #dee2e6);
+}
+.jb-selfilter-foot button {
+  flex: 1;
+  padding: 0.25rem 0.4rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--button-gray-1, #f1f3f5);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.jb-selfilter-foot button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* text controls (simpleTextControls in the fork): one font dropdown, and
+   font sizes with their number under the icon, plus a typed size */
+
+.excalidraw .FontPicker__select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 9rem;
+  height: 2rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--default-border-color, #dee2e6);
+  border-radius: var(--border-radius-lg, 8px);
+  background: var(--input-bg-color, #fff);
+  color: var(--text-primary-color, #1e1e1e);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.excalidraw .FontPicker__select:hover,
+.excalidraw .FontPicker__select.is-open {
+  border-color: var(--color-primary, #6965db);
+}
+.excalidraw .FontPicker__select span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.excalidraw .FontSize__simple {
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+}
+.excalidraw .FontSize__preset {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 2rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--border-radius-lg, 8px);
+  background: var(--button-gray-1, #f8f9fa);
+  color: var(--icon-fill-color, #1b1b1f);
+  cursor: pointer;
+}
+.excalidraw .FontSize__preset svg {
+  width: 1rem;
+  height: 1rem;
+}
+.excalidraw .FontSize__preset span {
+  font-size: 0.6rem;
+  line-height: 1;
+  color: var(--color-gray-60, #7a7a7a);
+}
+.excalidraw .FontSize__preset:hover {
+  background: var(--button-gray-2, #e9ecef);
+}
+.excalidraw .FontSize__preset.active {
+  background: var(--color-surface-primary-container, #e0dfff);
+  color: var(--color-primary-darker, #5b57d1);
+}
+.excalidraw .FontSize__preset.active span {
+  color: inherit;
+}
+.excalidraw .FontSize__input {
+  box-sizing: border-box;
+  width: 3.2rem;
+  height: 2.5rem;
+  padding: 0 0.3rem;
+  border: 1px solid var(--default-border-color, #dee2e6);
+  border-radius: var(--border-radius-lg, 8px);
+  background: var(--input-bg-color, #fff);
+  color: var(--text-primary-color, #1e1e1e);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+/* under the search: table view, print, new sheet, new group */
+
+.jb-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin: 0.35rem 0 0.15rem;
+}
+.jb-actions .jb-pop {
+  left: 0;
+  right: auto;
+}
+.jb-actions .jb-addmenus {
+  display: flex;
+  gap: 0.15rem;
+}
+
+/* the top-right sidebar buttons, icons only */
+
+.excalidraw .jb-trigger.sidebar-trigger,
+.excalidraw .default-sidebar-trigger.jb-trigger {
+  padding: 0.5rem;
+}
+
+/* the font list's tip is about pinning fonts, which the dropdown doesn't do */
+
+.excalidraw .FontPicker__tip {
+  display: none;
+}
+
+/* print preview (PrintDialog) */
+
+.jb-print {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  background: var(--color-surface-lowest, #f6f6f9);
+  color: var(--text-primary-color, #1e1e1e);
+  font-family: var(--ui-font, Assistant, system-ui, sans-serif);
+}
+.jb-print-side {
+  flex: none;
+  width: 17rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  overflow-y: auto;
+  background: var(--island-bg-color, #fff);
+  border-right: 1px solid var(--default-border-color, #dee2e6);
+  font-size: 0.85rem;
+}
+.jb-print-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.jb-print-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.jb-print-x {
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.jb-print-side fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.jb-print-side legend {
+  margin-bottom: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--color-gray-60, #7a7a7a);
+}
+.jb-print-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.2rem 0;
+  cursor: pointer;
+}
+.jb-print-dpi {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.jb-print-dpi button {
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--default-border-color, #dee2e6);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.jb-print-dpi button.is-on {
+  border-color: var(--color-primary, #6965db);
+  background: var(--color-surface-primary-container, #e0dfff);
+  color: var(--color-primary-darker, #5b57d1);
+}
+.jb-print-go {
+  margin-top: auto;
+}
+.jb-print-download {
+  width: 100%;
+  padding: 0.6rem;
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-primary, #6965db);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.jb-print-download:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.jb-print-error {
+  margin: 0 0 0.5rem;
+  color: #e03131;
+}
+.jb-print-pages {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  align-content: start;
+  gap: 1.5rem;
+  padding: 1.5rem;
+}
+.jb-print-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+.jb-print-paper {
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+.jb-print-paper img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.jb-print-page.is-off .jb-print-paper {
+  opacity: 0.35;
+}
+.jb-print-caption {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  min-width: 0;
+}
+.jb-print-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

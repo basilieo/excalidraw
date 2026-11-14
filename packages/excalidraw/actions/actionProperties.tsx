@@ -1,6 +1,7 @@
 import { pointFrom } from "@excalidraw/math";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 import {
   BUCKET_FILL_BACKGROUND_PICKS,
@@ -1004,6 +1005,50 @@ export const actionChangeOpacity = register<ExcalidrawElement["opacity"]>({
   },
 });
 
+/** job book (fork): a font size typed in, applied on Enter or leaving */
+const FontSizeInput = ({
+  value,
+  onCommit,
+}: {
+  value: number | null;
+  onCommit: (size: number) => void;
+}) => {
+  const [draft, setDraft] = useState(value ? String(Math.round(value * 10) / 10) : "");
+  useEffect(() => {
+    setDraft(value ? String(Math.round(value * 10) / 10) : "");
+  }, [value]);
+  const commit = () => {
+    const n = Number(draft);
+    if (n >= 4 && n <= 400 && n !== value) {
+      onCommit(n);
+    } else {
+      setDraft(value ? String(Math.round(value * 10) / 10) : "");
+    }
+  };
+  return (
+    <input
+      className="FontSize__input"
+      type="number"
+      min={4}
+      max={400}
+      step={1}
+      value={draft}
+      placeholder="—"
+      title="Font size"
+      aria-label="Font size"
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") {
+          commit();
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+    />
+  );
+};
+
 export const actionChangeFontSize = register<ExcalidrawTextElement["fontSize"]>(
   {
     name: "changeFontSize",
@@ -1022,7 +1067,66 @@ export const actionChangeFontSize = register<ExcalidrawTextElement["fontSize"]>(
       );
     },
     PanelComponent: ({ elements, appState, updateData, app, data }) => {
-      const { isCompact } = getStylesPanelInfo(app);
+      const { isCompact, stylesPanelMode } = getStylesPanelInfo(app);
+      const current = getFormValue(
+        elements,
+        app,
+        (element) => {
+          const elementsMap = app.scene.getNonDeletedElementsMap();
+          if (isTextElement(element)) {
+            return getBaseFontSize(element, elementsMap);
+          }
+          const boundTextElement = getBoundTextElement(element, elementsMap);
+          if (boundTextElement) {
+            return getBaseFontSize(boundTextElement, elementsMap);
+          }
+          return null;
+        },
+        (element) =>
+          isTextElement(element) ||
+          getBoundTextElement(element, app.scene.getNonDeletedElementsMap()) !==
+            null,
+        (hasSelection) =>
+          hasSelection ? null : appState.currentItemFontSize || DEFAULT_FONT_SIZE,
+      );
+      const set = (value: number) =>
+        withCaretPositionPreservation(
+          () => updateData(value),
+          isCompact,
+          !!appState.editingTextElement,
+          data?.onPreventClose,
+        );
+
+      // job book (fork): sizes under the icons, and any size typed in
+      if (app.props.simpleTextControls && stylesPanelMode === "full") {
+        const sizes: [number, string, ReactNode][] = [
+          [FONT_SIZES.sm, t("labels.small"), FontSizeSmallIcon],
+          [FONT_SIZES.md, t("labels.medium"), FontSizeMediumIcon],
+          [FONT_SIZES.lg, t("labels.large"), FontSizeLargeIcon],
+          [FONT_SIZES.xl, t("labels.veryLarge"), FontSizeExtraLargeIcon],
+        ];
+        return (
+          <fieldset>
+            <legend>{t("labels.fontSize")}</legend>
+            <div className="buttonList FontSize__simple">
+              {sizes.map(([size, label, icon]) => (
+                <button
+                  key={size}
+                  type="button"
+                  className={`FontSize__preset${current === size ? " active" : ""}`}
+                  title={`${label}, ${size}`}
+                  data-testid={`fontSize-${size}`}
+                  onClick={() => set(size)}
+                >
+                  {icon}
+                  <span>{size}</span>
+                </button>
+              ))}
+              <FontSizeInput value={current} onCommit={set} />
+            </div>
+          </fieldset>
+        );
+      }
 
       return (
         <fieldset>
@@ -1451,10 +1555,11 @@ export const actionChangeFontFamily = register<{
 
     return (
       <>
-        {stylesPanelMode === "full" && (
+        {stylesPanelMode === "full" && !app.props.simpleTextControls && (
           <legend>{t("labels.fontFamily")}</legend>
         )}
         <FontPicker
+          selectorMode={!!app.props.simpleTextControls && stylesPanelMode === "full"}
           isOpened={appState.openPopup === "fontFamily"}
           selectedFontFamily={selectedFontFamily}
           hoveredFontFamily={appState.currentHoveredFontFamily}
