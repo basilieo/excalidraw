@@ -1,0 +1,6 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "rootDir": "..", "baseUrl": ".." },
+  "include": ["./**/*", "../packages/excalidraw/global.d.ts", "../packages/excalidraw/vite-env.d.ts", "../packages/excalidraw/*.d.ts"],
+  "exclude": ["build", "node_modules"]
+}

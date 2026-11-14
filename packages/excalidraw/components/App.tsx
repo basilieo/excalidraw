@@ -171,6 +171,7 @@ import {
   elementOverlapsWithFrame,
   updateFrameMembershipOfSelectedElements,
   getFrameLikeTitle,
+  getFrameSheetAccent,
   getElementsOverlappingFrame,
   hitElementBoundText,
   hitElementItself,
@@ -2278,8 +2279,12 @@ class App extends React.Component<AppProps, AppState> {
           />
         );
       } else {
-        frameNameJSX = frameName;
+        // job book (fork): a sheet shows its number ahead of its name
+        const { number: sheetNumber } = getFrameSheetAccent(f);
+        frameNameJSX = sheetNumber ? `${sheetNumber} · ${frameName}` : frameName;
       }
+
+      const { color: sheetColor } = getFrameSheetAccent(f);
 
       return (
         <div
@@ -2303,9 +2308,12 @@ class App extends React.Component<AppProps, AppState> {
             left: `${x1 - this.state.offsetLeft}px`,
             zIndex: 2,
             fontSize: FRAME_STYLE.nameFontSize,
-            color: isDarkTheme
+            color: sheetColor
+              ? applyDarkModeFilter(sheetColor, isDarkTheme)
+              : isDarkTheme
               ? FRAME_STYLE.nameColorDarkTheme
               : FRAME_STYLE.nameColorLightTheme,
+            fontWeight: sheetColor ? 600 : undefined,
             lineHeight: FRAME_STYLE.nameLineHeight,
             width: "max-content",
             maxWidth:

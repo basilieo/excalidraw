@@ -1103,6 +1103,27 @@ export const getFrameLikeTitle = (element: ExcalidrawFrameLikeElement) => {
   return element.name === null ? getDefaultFrameName(element) : element.name;
 };
 
+/**
+ * Job book (fork): a frame can be a drawing sheet. The host app writes the
+ * sheet's number and discipline color into `customData`, and the editor shows
+ * them on the frame itself: the number ahead of the name, and the color on
+ * the label and the outline. Frames without sheet data render as upstream.
+ */
+export const getFrameSheetAccent = (
+  element: ExcalidrawFrameLikeElement,
+): { color: string | null; number: string | null } => {
+  const data = element.customData as
+    | { sheetColor?: unknown; sheetNumber?: unknown }
+    | undefined;
+  return {
+    color: typeof data?.sheetColor === "string" ? data.sheetColor : null,
+    number:
+      typeof data?.sheetNumber === "string" && data.sheetNumber
+        ? data.sheetNumber
+        : null,
+  };
+};
+
 export const getElementsOverlappingFrame = <T extends ExcalidrawElement>(
   elements: readonly T[],
   frame: ExcalidrawFrameLikeElement,

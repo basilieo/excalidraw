@@ -1,0 +1,248 @@
+/* The job book's own pieces, on top of the editor's styles. Colors come from
+   the editor's theme variables so dark mode follows. */
+
+html,
+body,
+#root,
+.jb-app {
+  height: 100%;
+  margin: 0;
+}
+
+.jb-topright {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.jb-status {
+  font-size: 0.75rem;
+  color: var(--color-gray-50, #868e96);
+  white-space: nowrap;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jb-status.is-unsaved,
+.jb-status.is-saving {
+  color: var(--color-primary, #6965db);
+}
+.jb-status.is-conflict,
+.jb-status.is-error {
+  color: #e03131;
+  font-weight: 600;
+}
+
+.jb-trigger {
+  font-size: 0.8rem;
+}
+
+/* sidebar */
+
+.jb-sidebar .sidebar__header {
+  padding-bottom: 0.25rem;
+}
+.jb-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.jb-back {
+  font-size: 0.75rem;
+  color: var(--color-gray-50, #868e96);
+  text-decoration: none;
+}
+.jb-back:hover {
+  color: var(--color-primary);
+}
+.jb-board {
+  font-weight: 700;
+  font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jb-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0 0.75rem 0.75rem;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  font-size: 0.85rem;
+}
+
+.jb-search,
+.jb-panel input:not([type="checkbox"]),
+.jb-panel select {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--default-border-color, #ddd);
+  border-radius: 6px;
+  background: var(--input-bg-color, transparent);
+  color: var(--text-primary-color, inherit);
+}
+
+.jb-index {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 6rem;
+  margin: 0 -0.25rem;
+  padding: 0 0.25rem;
+}
+
+.jb-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-gray-60, #666);
+}
+.jb-count {
+  font-weight: 400;
+  color: var(--color-gray-50, #999);
+}
+.jb-link {
+  margin-left: auto;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: var(--color-primary);
+  cursor: pointer;
+}
+.jb-chip {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 2px;
+  flex: none;
+}
+
+.jb-group ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.jb-sheet {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+.jb-sheet:hover {
+  background: var(--button-hover-bg, rgba(0, 0, 0, 0.05));
+}
+.jb-sheet.is-active {
+  background: var(--color-surface-primary-container, #e0dfff);
+}
+.jb-sheet.is-over {
+  box-shadow: inset 0 2px 0 var(--color-primary);
+}
+.jb-bar {
+  width: 3px;
+  align-self: stretch;
+  border-radius: 2px;
+  flex: none;
+}
+.jb-num {
+  font-family: "Cascadia", ui-monospace, Menlo, monospace;
+  font-size: 0.75rem;
+  min-width: 3.2rem;
+  color: var(--color-gray-60, #666);
+}
+.jb-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jb-rename {
+  flex: 1;
+  min-width: 0;
+}
+.jb-rev {
+  font-size: 0.7rem;
+  color: var(--color-gray-50, #999);
+}
+.jb-empty,
+.jb-hint {
+  color: var(--color-gray-50, #888);
+  margin: 0.5rem 0;
+  line-height: 1.4;
+}
+
+.jb-add {
+  display: flex;
+  gap: 0.4rem;
+}
+.jb-add select {
+  flex: 1;
+}
+.jb-add button,
+.jb-editor button {
+  flex: none;
+  font: inherit;
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+  cursor: pointer;
+}
+
+.jb-editor {
+  border-top: 1px solid var(--default-border-color, #ddd);
+  padding-top: 0.6rem;
+}
+.jb-editor fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.jb-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+.jb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1;
+}
+.jb-field > span {
+  font-size: 0.7rem;
+  color: var(--color-gray-60, #666);
+}
+.jb-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.jb-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}

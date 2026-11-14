@@ -70,7 +70,7 @@ import {
   isFrameLikeElement,
   isImageElement,
 } from "./typeChecks";
-import { getContainingFrame } from "./frame";
+import { getContainingFrame, getFrameSheetAccent } from "./frame";
 import { getCornerRadius } from "./utils";
 
 import { ShapeCache } from "./shape";
@@ -1093,7 +1093,8 @@ const drawElement = (
 
           context.lineWidth = FRAME_STYLE.strokeWidth / appState.zoom.value;
           context.strokeStyle = applyDarkModeFilter(
-            FRAME_STYLE.strokeColor,
+            // job book (fork): a sheet's outline takes its discipline color
+            getFrameSheetAccent(element).color ?? FRAME_STYLE.strokeColor,
             appState.theme === THEME.DARK,
           );
 

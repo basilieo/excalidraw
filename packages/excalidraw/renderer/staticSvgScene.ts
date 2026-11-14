@@ -33,7 +33,11 @@ import {
   isTextElement,
 } from "@excalidraw/element";
 
-import { getContainingFrame, isFrameClippable } from "@excalidraw/element";
+import {
+  getContainingFrame,
+  getFrameSheetAccent,
+  isFrameClippable,
+} from "@excalidraw/element";
 
 import { getCornerRadius, isPathALoop } from "@excalidraw/element";
 
@@ -769,7 +773,8 @@ const renderElementToSvg = (
         rect.setAttribute(
           "stroke",
           applyDarkModeFilter(
-            FRAME_STYLE.strokeColor,
+            // job book (fork): a sheet's outline takes its discipline color
+            getFrameSheetAccent(element).color ?? FRAME_STYLE.strokeColor,
             renderConfig.theme === THEME.DARK,
           ),
         );
