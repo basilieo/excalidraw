@@ -308,6 +308,9 @@ const TableOverlay = ({
     appState,
   );
   const selected = !!appState.selectedElementIds[anchor.id];
+  const locked = !!anchor.locked;
+  const lockedRef = useRef(locked);
+  lockedRef.current = locked;
   const moving =
     selected &&
     (appState.selectedElementsAreBeingDragged || appState.isResizing);
@@ -343,6 +346,19 @@ const TableOverlay = ({
         e.preventDefault();
         e.stopImmediatePropagation();
       };
+      // a locked table can be looked through, not changed
+      if (
+        lockedRef.current &&
+        !e.key.startsWith("Arrow") &&
+        e.key !== "Tab" &&
+        e.key !== "Escape" &&
+        !(mod && (e.key === "a" || e.key === "c"))
+      ) {
+        if (!mod) {
+          stop();
+        }
+        return;
+      }
       if (mod) {
         if (e.key === "a") {
           stop();
@@ -449,6 +465,9 @@ const TableOverlay = ({
       e.stopImmediatePropagation();
     };
     const onPaste = (e: ClipboardEvent) => {
+      if (lockedRef.current) {
+        return;
+      }
       const { sel, grid, rng } = live.current;
       if (!sel || sel.editing || !grid || !rng || typingElsewhere(e.target)) {
         return;
@@ -635,7 +654,7 @@ const TableOverlay = ({
     }
     select(cell);
     // a checkbox toggles on click, as in Numbers
-    if (cell.r !== HEADER && colOf(cell.c)?.format === "checkbox") {
+    if (!locked && cell.r !== HEADER && colOf(cell.c)?.format === "checkbox") {
       const b = cellBox(cell.r, cell.c);
       const box = Math.max(12, 14 * z);
       if (
@@ -662,6 +681,9 @@ const TableOverlay = ({
     dragging.current = false;
   };
   const onDouble = (e: React.MouseEvent) => {
+    if (locked) {
+      return;
+    }
     const cell = cellAt(e.clientX, e.clientY);
     if (!cell || (cell.r !== HEADER && colOf(cell.c)?.format === "checkbox")) {
       return;
@@ -729,6 +751,7 @@ const TableOverlay = ({
       )}
 
       {!selected &&
+        !locked &&
         layout.columns.map((col) => (
           <div
             key={`grip:${col.id}`}
@@ -827,6 +850,7 @@ const TableOverlay = ({
       )}
 
       {/* the handle, and the bars that add a row or a column */}
+      {!locked && (<>
       <button
         type="button"
         className={`jb-table-handle${selected ? " is-on" : ""}`}
@@ -874,6 +898,7 @@ const TableOverlay = ({
       >
         {PlusIcon}
       </button>
+      </>)}
       {panel}
     </>
   );

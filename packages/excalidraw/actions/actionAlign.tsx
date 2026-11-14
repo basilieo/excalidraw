@@ -32,6 +32,11 @@ import { isSomeElementSelected } from "../scene";
 
 import { getShortcutKey } from "../shortcut";
 
+import {
+  carryFrameContents,
+  frameSpots,
+  withoutFrameContents,
+} from "./frameCarry";
 import { register } from "./register";
 
 import type { AppClassProperties, AppState, UIAppState } from "../types";
@@ -48,7 +53,9 @@ export const alignActionsPredicate = (
       appState as Readonly<AppState>,
     ).length > 1 &&
     // TODO enable aligning frames when implemented properly
-    !selectedElements.some((el) => isFrameLikeElement(el))
+    // job book (fork): frames align, carrying what's on them
+    (!!app.props.alignFrames ||
+      !selectedElements.some((el) => isFrameLikeElement(el)))
   );
 };
 
@@ -58,7 +65,10 @@ const alignSelectedElements = (
   app: AppClassProperties,
   alignment: Alignment,
 ) => {
-  const selectedElements = app.scene.getSelectedElements(appState);
+  const selectedElements = withoutFrameContents(
+    app.scene.getSelectedElements(appState),
+  );
+  const spots = frameSpots(selectedElements);
 
   const updatedElements = alignElements(
     selectedElements,
@@ -68,7 +78,10 @@ const alignSelectedElements = (
     app.renderEnvironment,
   );
 
-  const updatedElementsMap = arrayToMap(updatedElements);
+  const updatedElementsMap = arrayToMap([
+    ...updatedElements,
+    ...carryFrameContents(spots, appState.selectedElementIds, app),
+  ]);
 
   return updateFrameMembershipOfSelectedElements(
     elements.map((element) => updatedElementsMap.get(element.id) || element),

@@ -28,6 +28,11 @@ import { isSomeElementSelected } from "../scene";
 
 import { getShortcutKey } from "../shortcut";
 
+import {
+  carryFrameContents,
+  frameSpots,
+  withoutFrameContents,
+} from "./frameCarry";
 import { register } from "./register";
 
 import type { AppClassProperties, AppState, UIAppState } from "../types";
@@ -41,7 +46,9 @@ const enableActionGroup = (appState: UIAppState, app: AppClassProperties) => {
       appState,
     ).length > 2 &&
     // TODO enable distributing frames when implemented properly
-    !selectedElements.some((el) => isFrameLikeElement(el))
+    // job book (fork): frames distribute, carrying what's on them
+    (!!app.props.alignFrames ||
+      !selectedElements.some((el) => isFrameLikeElement(el)))
   );
 };
 
@@ -51,7 +58,10 @@ const distributeSelectedElements = (
   app: AppClassProperties,
   distribution: Distribution,
 ) => {
-  const selectedElements = app.scene.getSelectedElements(appState);
+  const selectedElements = withoutFrameContents(
+    app.scene.getSelectedElements(appState),
+  );
+  const spots = frameSpots(selectedElements);
 
   const updatedElements = distributeElements(
     selectedElements,
@@ -62,7 +72,10 @@ const distributeSelectedElements = (
     app.renderEnvironment,
   );
 
-  const updatedElementsMap = arrayToMap(updatedElements);
+  const updatedElementsMap = arrayToMap([
+    ...updatedElements,
+    ...carryFrameContents(spots, appState.selectedElementIds, app),
+  ]);
 
   return updateFrameMembershipOfSelectedElements(
     elements.map((element) => updatedElementsMap.get(element.id) || element),

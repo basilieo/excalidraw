@@ -25,6 +25,19 @@ export type BoardSettings = {
   colors: Record<string, string>;
   /** the board's sheet groups, once any is renamed, recoded or added */
   groups?: Discipline[];
+  /** comments on the board: kept here, not as drawing, so they never print */
+  comments?: BoardComment[];
+};
+
+export type CommentPost = { author: string; text: string; at: string };
+export type BoardComment = {
+  id: string;
+  /** where the pin is on the board; or, on an element, from its corner */
+  x: number;
+  y: number;
+  elementId?: string;
+  resolved?: boolean;
+  thread: CommentPost[];
 };
 
 export const DEFAULT_SETTINGS: BoardSettings = {

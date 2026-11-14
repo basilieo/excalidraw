@@ -157,6 +157,7 @@ const buildParts = (
   data: TableData,
 ): ExcalidrawElement[] => {
   const look = lookOf(data);
+  const tintColumn = look.headerInk.toLowerCase() === "#ffffff";
   const ox = anchor.x;
   const oy = anchor.y;
   const id = (part: string) => `${anchor.id}:t:${part}`;
@@ -244,6 +245,10 @@ const buildParts = (
       layout.height - layout.headerHeight,
       look.header,
     );
+    // a strong header color is a tint down the column, as in Numbers
+    if (tintColumn) {
+      fade.set(id("headcol"), 0.3);
+    }
   }
   for (const c of layout.cells) {
     if (c.style.fill) {
@@ -330,7 +335,7 @@ const buildParts = (
     }
     const part = `${isHeader(c) ? "head" : "cell"}:${c.rowId}:${c.colId}`;
     texts.push({ part, cell: c, bold: !!c.style.bold || isHeader(c) });
-    const onHeader = isHeader(c) || (c.head && look.headerColumn);
+    const onHeader = isHeader(c) || (c.head && look.headerColumn && !tintColumn);
     const text = {
       type: "text",
       x: ox + c.x + PAD_X,

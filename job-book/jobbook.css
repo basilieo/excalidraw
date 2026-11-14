@@ -549,7 +549,7 @@ body.jb-table-format .excalidraw .App-menu__left {
   position: fixed;
   top: var(--jb-fp-top, 76px);
   left: var(--jb-fp-left, 16px);
-  width: 228px;
+  width: 252px;
   max-height: calc(100vh - 140px);
   overflow-y: auto;
   box-sizing: border-box;
@@ -1452,4 +1452,400 @@ body.jb-table-format .excalidraw .App-menu__left {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+
+/* the table panel's Numbers-style controls (table/FormatPanel) */
+
+.excalidraw .jb-fp-tabs button {
+  font-size: 0.72rem;
+}
+.excalidraw .jb-fp-body {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.excalidraw .jb-fp-body:disabled {
+  opacity: 0.5;
+}
+.excalidraw .jb-fp-section {
+  padding: 8px 0 6px;
+  border-bottom: 1px solid var(--default-border-color, #ebebeb);
+}
+.excalidraw .jb-fp-section:last-child {
+  border-bottom: 0;
+}
+.excalidraw .jb-fp-section > legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: var(--text-primary-color, #1e1e1e);
+}
+.excalidraw .jb-fp-section > legend + * {
+  clear: left;
+}
+.excalidraw .jb-fp-styles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.excalidraw .jb-fp-style {
+  padding: 2px;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+}
+.excalidraw .jb-fp-style.is-on {
+  border-color: var(--color-primary, #6965db);
+}
+.excalidraw .jb-fp-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 30px;
+}
+.excalidraw .jb-fp-line > div {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.excalidraw .jb-fp-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  cursor: pointer;
+}
+.excalidraw .jb-fp-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  margin: 2px 0;
+  border-radius: 8px;
+  background: var(--button-gray-1, #f1f3f5);
+}
+.excalidraw .jb-fp-seg > button {
+  min-width: 28px;
+  height: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--icon-fill-color, #1b1b1f);
+  cursor: pointer;
+}
+.excalidraw .jb-fp-seg > button:hover:not(:disabled) {
+  background: var(--button-gray-2, #e9ecef);
+}
+.excalidraw .jb-fp-seg > button.is-on {
+  background: var(--color-primary, #6965db);
+  color: #fff;
+}
+.excalidraw .jb-fp-seg > button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.excalidraw .jb-fp-stepper {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  border: 1px solid var(--default-border-color, #dee2e6);
+  border-radius: 6px;
+  background: var(--input-bg-color, #fff);
+  overflow: hidden;
+}
+.excalidraw .jb-fp-stepper.is-disabled {
+  opacity: 0.45;
+}
+.excalidraw .jb-format-panel .jb-fp-stepper input {
+  width: 3.4em;
+  height: 100%;
+  padding: 0 2px 0 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+.excalidraw .jb-fp-stepper input::-webkit-inner-spin-button,
+.excalidraw .jb-fp-stepper input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.excalidraw .jb-fp-unit {
+  padding-right: 4px;
+  font-size: 0.68rem;
+  color: var(--color-gray-60, #7a7a7a);
+}
+.excalidraw .jb-fp-arrows {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  border-left: 1px solid var(--default-border-color, #dee2e6);
+}
+.excalidraw .jb-fp-arrows button {
+  flex: 1;
+  width: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--icon-fill-color, #1b1b1f);
+  line-height: 0;
+  cursor: pointer;
+}
+.excalidraw .jb-fp-arrows button:hover:not(:disabled) {
+  background: var(--button-gray-2, #e9ecef);
+}
+.excalidraw .jb-fp-wellrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.excalidraw .jb-fp-well {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 22px;
+  border: 1px solid var(--default-border-color, #dee2e6);
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  background:
+    linear-gradient(135deg, transparent 46%, #e03131 46%, #e03131 54%, transparent 54%),
+    #fff;
+}
+.excalidraw .jb-fp-well > span {
+  position: absolute;
+  inset: 0;
+}
+.excalidraw .jb-fp-well input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.excalidraw .jb-fp-text-btn {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--button-gray-1, #f1f3f5);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.excalidraw .jb-fp-text-btn:hover:not(:disabled) {
+  background: var(--button-gray-2, #e9ecef);
+}
+.excalidraw .jb-fp-text-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.excalidraw .jb-fp-fontname {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--default-border-color, #dee2e6);
+  border-radius: 6px;
+}
+.excalidraw .jb-fp-row + .jb-fp-row,
+.excalidraw .jb-fp-seg + .jb-fp-seg {
+  margin-top: 4px;
+}
+.excalidraw .jb-fp-seg + .jb-fp-seg {
+  display: flex;
+  width: max-content;
+}
+.excalidraw .jb-fp-stack,
+.excalidraw .jb-fp-pair {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.excalidraw .jb-fp-stack {
+  grid-template-columns: repeat(4, 1fr);
+}
+.excalidraw .jb-fp-stack label,
+.excalidraw .jb-fp-pair label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.68rem;
+  color: var(--color-gray-60, #7a7a7a);
+}
+.excalidraw .jb-fp-btn.is-wide {
+  width: 100%;
+}
+
+/* comments (comments/CommentLayer): pins over the board, never printed */
+
+.jb-comments {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9;
+  --jb-c-bg: #ffffff;
+  --jb-c-ink: #1e1e1e;
+  --jb-c-line: #dee2e6;
+  --jb-c-muted: #868e96;
+}
+.jb-comments.is-dark {
+  --jb-c-bg: #232329;
+  --jb-c-ink: #e3e3e8;
+  --jb-c-line: #3d3d45;
+}
+.jb-comment-catcher {
+  position: fixed;
+  inset: 0;
+  pointer-events: auto;
+  cursor: crosshair;
+}
+.jb-comment {
+  position: fixed;
+  width: 0;
+  height: 0;
+}
+.jb-pin {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border: 2px solid #fff;
+  border-radius: 14px 14px 14px 3px;
+  background: #f59f00;
+  color: #fff;
+  font: 700 11px/24px Helvetica, Arial, sans-serif;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.jb-pin.is-open {
+  background: var(--color-primary, #6965db);
+}
+.jb-pin-count {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  background: #e03131;
+  font-size: 9px;
+  line-height: 14px;
+}
+.jb-thread {
+  position: absolute;
+  left: 36px;
+  top: -30px;
+  width: 260px;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--jb-c-bg);
+  color: var(--jb-c-ink);
+  border: 1px solid var(--jb-c-line);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.22);
+  font: 13px/1.4 Helvetica, Arial, sans-serif;
+  pointer-events: auto;
+}
+.jb-thread-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+.jb-thread-head span {
+  flex: 1;
+}
+.jb-thread-head button,
+.jb-reply button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  cursor: pointer;
+}
+.jb-thread-head button:hover:not(:disabled),
+.jb-reply button:hover:not(:disabled) {
+  background: rgba(105, 101, 219, 0.12);
+}
+.jb-thread-head button:disabled,
+.jb-reply button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.jb-post {
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--jb-c-line);
+}
+.jb-post-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+.jb-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #f59f00;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+}
+.jb-post-when {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--jb-c-muted);
+}
+.jb-post-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.jb-reply {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  margin-top: 6px;
+}
+.jb-reply textarea {
+  flex: 1;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--jb-c-line);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  resize: none;
+  outline: none;
+}
+.jb-reply textarea:focus {
+  border-color: var(--color-primary, #6965db);
+}
+.jb-tool-button.is-on {
+  background: var(--color-surface-primary-container, #e0dfff);
+  color: var(--color-primary-darker, #5b57d1);
+}
+.jb-comment.is-left .jb-thread {
+  left: auto;
+  right: 8px;
 }

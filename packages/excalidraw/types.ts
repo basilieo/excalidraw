@@ -1005,6 +1005,11 @@ export interface ExcalidrawProps {
    */
   simpleTextControls?: boolean;
   /**
+   * job book (fork): sheets (frames) can be aligned and distributed, and
+   * what's on each one moves with it.
+   */
+  alignFrames?: boolean;
+  /**
    * job book (fork): a selection filter. Elements it turns down can't be
    * clicked, boxed or select-all'ed into the selection.
    */

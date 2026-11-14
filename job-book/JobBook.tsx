@@ -31,6 +31,7 @@ import { syncDocs } from "./doc/render";
 import { createToc, syncTocs } from "./toc/render";
 import { SelectionFilterButton, useSelectionFilter } from "./SelectionFilter";
 import { PrintHost } from "./PrintDialog";
+import { CommentButton, CommentLayer } from "./comments/CommentLayer";
 
 /** the sheets: binder dividers, a tab standing out of each */
 const SidebarIcon = (
@@ -623,12 +624,14 @@ const Editor = ({
           mouseWheelZoomRate={0.001}
           directionalBoxSelection
           simpleTextControls
+          alignFrames
           isElementSelectable={selectionFilter.isSelectable}
           renderToolbarExtras={() =>
             config.canEdit ? (
               <>
                 <DocButton />
                 <AttachButton />
+                <CommentButton />
               </>
             ) : null
           }
@@ -766,6 +769,7 @@ const Editor = ({
         {tableView && <SheetTable onClose={() => setTableView(false)} />}
         <TableLayer canEdit={config.canEdit} />
         <DocLayer canEdit={config.canEdit} />
+        <CommentLayer user={config.user ?? ""} canEdit={config.canEdit} />
         {config.canEdit && <Connectors />}
       </SheetTableViewContext.Provider>
     </SettingsContext.Provider>

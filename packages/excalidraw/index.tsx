@@ -89,6 +89,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
     mouseWheelZoomRate,
     directionalBoxSelection,
     simpleTextControls,
+    alignFrames,
     isElementSelectable,
     langCode = defaultLang.code,
     viewModeEnabled,
@@ -238,6 +239,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
           mouseWheelZoomRate={mouseWheelZoomRate}
           directionalBoxSelection={directionalBoxSelection}
           simpleTextControls={simpleTextControls}
+          alignFrames={alignFrames}
           isElementSelectable={isElementSelectable}
           langCode={langCode}
           viewModeEnabled={viewModeEnabled}

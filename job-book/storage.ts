@@ -20,6 +20,8 @@ export type JobBookConfig = {
   thumbnailUrl?: string | null;
   hasThumbnail?: boolean;
   isTemplate?: boolean;
+  /** who is signed in, for their comments */
+  user?: string;
 };
 
 export type StoredScene = {
