@@ -45,8 +45,18 @@ export const DISCIPLINES: Discipline[] = [
   { code: "R", name: "Reference", color: "#0c8599" },
 ];
 
+// Colors the board has changed from these defaults (BoardSettings.colors),
+// by phase or status code. Set by the editor when a board loads or a color
+// is picked in the sheet index.
+let colorOverrides: Record<string, string> = {};
+export const setColorOverrides = (colors?: Record<string, string>) => {
+  colorOverrides = { ...(colors ?? {}) };
+};
+const withColor = <T extends { code: string; color: string }>(x: T): T =>
+  colorOverrides[x.code] ? { ...x, color: colorOverrides[x.code] } : x;
+
 export const disciplineOf = (code: string) =>
-  DISCIPLINES.find((d) => d.code === code) ?? DISCIPLINES[0];
+  withColor(DISCIPLINES.find((d) => d.code === code) ?? DISCIPLINES[0]);
 
 export type Status = { code: string; name: string; color: string };
 
@@ -61,10 +71,13 @@ export const STATUSES: Status[] = [
 ];
 
 export const statusOf = (code: string) =>
-  STATUSES.find((s) => s.code === code) ?? STATUSES[0];
+  withColor(STATUSES.find((s) => s.code === code) ?? STATUSES[0]);
 
 export type SheetData = {
+  /** the page number: set for you, from the sheet's place in the set */
   number: string;
+  /** place within its phase, once sheets have been dragged into an order */
+  order?: number;
   discipline: string;
   status: string;
   revision: string;
@@ -128,33 +141,23 @@ const disciplineIndex = (code: string) => {
   return i === -1 ? 0 : i;
 };
 
-export const compareSheetNumbers = (a: string, b: string) =>
-  a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
-
-export const sortSheets = (sheets: Sheet[]) =>
-  [...sheets].sort(
+/**
+ * The set in page order: by phase, then the order sheets were dragged into
+ * in the index, then their place on the board (rows top to bottom, left to
+ * right). Page numbers count through this.
+ */
+export const sortSheets = (sheets: Sheet[]) => {
+  const place = new Map(byPosition(sheets).map((s, i) => [s.frame.id, i]));
+  return [...sheets].sort(
     (a, b) =>
       disciplineIndex(a.data.discipline) - disciplineIndex(b.data.discipline) ||
-      // unnumbered sheets go last in their discipline
-      Number(!a.data.number) - Number(!b.data.number) ||
-      compareSheetNumbers(a.data.number, b.data.number) ||
-      a.title.localeCompare(b.title),
+      (a.data.order ?? Infinity) - (b.data.order ?? Infinity) ||
+      place.get(a.frame.id)! - place.get(b.frame.id)!,
   );
-
-export const numberFor = (code: string, index: number) =>
-  `${code}-${101 + index}`;
-
-export const nextNumber = (sheets: Sheet[], code: string) => {
-  const used = new Set(sheets.map((s) => s.data.number));
-  let i = 0;
-  while (used.has(numberFor(code, i))) {
-    i++;
-  }
-  return numberFor(code, i);
 };
 
 /** frames in reading order: rows top to bottom, then left to right */
-export const byPosition = (sheets: Sheet[]) => {
+export function byPosition(sheets: Sheet[]) {
   const rowHeight =
     Math.min(...sheets.map((s) => s.frame.height), REFERENCE_SHORT_SIDE) / 2;
   return [...sheets].sort(
@@ -162,7 +165,7 @@ export const byPosition = (sheets: Sheet[]) => {
       Math.round(a.frame.y / rowHeight) - Math.round(b.frame.y / rowHeight) ||
       a.frame.x - b.frame.x,
   );
-};
+}
 
 // ---------------------------------------------------------------------------
 // writing sheet data
@@ -229,6 +232,25 @@ export const updateSheet = (
   colorBy: ColorBy,
 ) => updateSheets(api, new Map([[frameId, change]]), colorBy);
 
+/**
+ * Every sheet's number is its page in the set, 1, 2, 3 ..., kept in step as
+ * sheets are added, moved, reordered or change phase. Never its own undo.
+ */
+export const syncPageNumbers = (
+  api: ExcalidrawImperativeAPI,
+  colorBy: ColorBy,
+): boolean => {
+  const changes = new Map<string, FrameChange>();
+  sortSheets(getSheets(api.getSceneElements())).forEach((s, i) => {
+    const page = String(i + 1);
+    if (s.data.number !== page) {
+      changes.set(s.frame.id, { patch: { number: page } });
+    }
+  });
+  applyChanges(api, changes, colorBy, CaptureUpdateAction.NEVER);
+  return changes.size > 0;
+};
+
 /** recolor every sheet after the board's color scheme changes */
 export const recolorSheets = (
   api: ExcalidrawImperativeAPI,
@@ -255,7 +277,7 @@ export const adoptFrames = (
   const assigned: Sheet[] = [...sheets];
   for (const sheet of byPosition(sheets)) {
     if (!(sheet.frame.customData as any)?.sheet) {
-      const number = nextNumber(assigned, "G");
+      const number = "";
       assigned.push({ ...sheet, data: { ...sheet.data, number } });
       const f = sheet.frame;
       changes.set(f.id, {
@@ -298,8 +320,14 @@ export const addSheet = (
     x = width / 2 / zoom.value - scrollX - size.width / 2;
     y = height / 2 / zoom.value - scrollY - size.height / 2;
   }
+  const orders = sheets
+    .filter((s) => s.data.discipline === discipline)
+    .map((s) => s.data.order)
+    .filter((o): o is number => o !== undefined);
   const data: SheetData = {
-    number: nextNumber(sheets, discipline),
+    number: "",
+    // after the sheets already put in order, if any have been
+    ...(orders.length ? { order: Math.max(...orders) + 1 } : {}),
     discipline,
     status: "draft",
     revision: "0",
@@ -372,6 +400,7 @@ const signature = (
   JSON.stringify([
     frame.name,
     readSheet(frame),
+    sheetColor(readSheet(frame), colorBy),
     project,
     colorBy,
     Math.round(frame.x),

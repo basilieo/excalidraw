@@ -1,6 +1,7 @@
 // NP's job book, as it was laid out in Miro: one row per phase of the job,
 // each row a run of sheets numbered as the table of contents numbers them,
-// with the same placeholders. Run on an empty board (Menu → "Lay out the NP
+// with the same placeholders. Rows are colored by phase; each sheet is
+// numbered by its page in the set. Run on an empty board (Menu → "Lay out the NP
 // job book"), then save the board as a template.
 
 import {
@@ -451,8 +452,6 @@ export const buildNpJobBook = (
   const { width: W, height: H } = paperPx("a3", "landscape");
   const GAP = 240;
   const ROW_GAP = 460;
-  const LABEL_W = 600;
-  const LABEL_H = 340;
 
   // the table of contents lists every sheet
   const toc = ROWS.flatMap((r) =>
@@ -491,29 +490,7 @@ export const buildNpJobBook = (
   }[] = [];
 
   ROWS.forEach((row, ri) => {
-    const discipline = DISCIPLINES.find((d) => d.code === row.phase)!;
     const y0 = ri * (H + ROW_GAP);
-
-    // the row's label, like Miro's sticky at the start of each row
-    skeletons.push({
-      type: "rectangle",
-      id: id("label"),
-      x: -LABEL_W - GAP * 2,
-      y: y0 + (H - LABEL_H) / 2,
-      width: LABEL_W,
-      height: LABEL_H,
-      backgroundColor: discipline.color,
-      strokeColor: discipline.color,
-      fillStyle: "solid",
-      roughness: 0,
-      roundness: null,
-      label: {
-        text: discipline.name,
-        fontSize: 56,
-        fontFamily: FONT_FAMILY.Helvetica,
-        strokeColor: INK,
-      },
-    });
 
     row.sheets.forEach((spec, si) => {
       const fx = si * (W + GAP);
@@ -644,7 +621,9 @@ export const buildNpJobBook = (
       }
 
       const data: SheetData = {
-        number: spec.n,
+        // pages are numbered for it, from its place in the set
+        number: "",
+        order: si,
         discipline: row.phase,
         status: "draft",
         revision: "0",

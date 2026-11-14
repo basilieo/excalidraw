@@ -22,14 +22,11 @@ import { useSheetTableView } from "./SheetTable";
 import { useSheets } from "./useSheets";
 import {
   addSheet,
-  byPosition,
   DISCIPLINES,
   disciplineOf,
   getSheets,
   goToSheet,
   isSheetFrame,
-  nextNumber,
-  numberFor,
   sheetColor,
   sortSheets,
   STATUSES,
@@ -40,7 +37,7 @@ import {
 } from "./sheets";
 
 import type { Orientation } from "./paper";
-import type { ColorBy, ConnectorStyle } from "./settings";
+import type { ColorBy } from "./settings";
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 export const SHEETS_SIDEBAR = "sheets";
@@ -108,6 +105,44 @@ const PaperOptions = ({ units }: { units: "in" | "mm" }) => {
   );
 };
 
+/** a phase's color: click it to pick another, for this board */
+const ColorChip = ({
+  code,
+  name,
+  color,
+  canEdit,
+}: {
+  code: string;
+  name: string;
+  color: string;
+  canEdit: boolean;
+}) => {
+  const { settings, update } = useSettings();
+  const timer = useRef<number | undefined>(undefined);
+  if (!canEdit) {
+    return <span className="jb-chip" style={{ background: color }} />;
+  }
+  return (
+    <label className="jb-chip-pick" title={`${name}'s color: click to change`}>
+      <span className="jb-chip" style={{ background: color }} />
+      <input
+        type="color"
+        value={color}
+        data-ref={`color.${code}`}
+        onChange={(e) => {
+          // the picker reports every step of a drag; set the color once it rests
+          const value = e.target.value;
+          window.clearTimeout(timer.current);
+          timer.current = window.setTimeout(
+            () => update({ colors: { ...settings.colors, [code]: value } }),
+            200,
+          );
+        }}
+      />
+    </label>
+  );
+};
+
 const SheetEditor = ({
   sheet,
   sheets,
@@ -151,15 +186,6 @@ const SheetEditor = ({
           />
         </Field>
         <div className="jb-row">
-          <Field label="Number">
-            <CommitInput
-              data-ref="sheet-number"
-              value={sheet.data.number}
-              onCommit={(number) =>
-                updateSheet(api, id, { patch: { number } }, colorBy)
-              }
-            />
-          </Field>
           <Field label="Rev">
             <CommitInput
               data-ref="sheet-revision"
@@ -169,39 +195,35 @@ const SheetEditor = ({
               }
             />
           </Field>
+          <Field label="Issued">
+            <input
+              type="date"
+              value={sheet.data.issued}
+              onChange={(e) =>
+                updateSheet(
+                  api,
+                  id,
+                  { patch: { issued: e.target.value } },
+                  colorBy,
+                )
+              }
+            />
+          </Field>
         </div>
         <div className="jb-row">
           <Field label="Phase">
             <select
               data-ref="sheet-discipline"
               value={discipline.code}
-              onChange={(e) => {
-                const code = e.target.value;
-                // a number that came from the old discipline (S-104) moves
-                // with it (to D-101); a number typed by hand stays
-                const old = sheet.data.number;
-                const automatic =
-                  !old ||
-                  new RegExp(`^${sheet.data.discipline}-\\d+$`).test(old);
+              onChange={(e) =>
+                // its page follows from its place in the new phase
                 updateSheet(
                   api,
                   id,
-                  {
-                    patch: {
-                      discipline: code,
-                      ...(automatic
-                        ? {
-                            number: nextNumber(
-                              sheets.filter((s) => s.frame.id !== id),
-                              code,
-                            ),
-                          }
-                        : {}),
-                    },
-                  },
+                  { patch: { discipline: e.target.value, order: undefined } },
                   colorBy,
-                );
-              }}
+                )
+              }
             >
               {DISCIPLINES.map((d) => (
                 <option key={d.code} value={d.code}>
@@ -231,20 +253,6 @@ const SheetEditor = ({
             </select>
           </Field>
         </div>
-        <Field label="Issued">
-          <input
-            type="date"
-            value={sheet.data.issued}
-            onChange={(e) =>
-              updateSheet(
-                api,
-                id,
-                { patch: { issued: e.target.value } },
-                colorBy,
-              )
-            }
-          />
-        </Field>
         <Field label="Paper">
           <select
             data-ref="sheet-paper"
@@ -259,6 +267,21 @@ const SheetEditor = ({
           >
             <option value="custom">Custom</option>
             <PaperOptions units={units} />
+          </select>
+        </Field>
+        <Field label="Orientation">
+          <select
+            data-ref="sheet-orientation"
+            disabled={!!sheet.data.sizeLocked}
+            value={orientation}
+            onChange={(e) => {
+              if (e.target.value !== orientation) {
+                resize(height, width);
+              }
+            }}
+          >
+            <option value="landscape">landscape</option>
+            <option value="portrait">portrait</option>
           </select>
         </Field>
         <div className="jb-row jb-size">
@@ -290,15 +313,6 @@ const SheetEditor = ({
               }}
             />
           </Field>
-          <button
-            type="button"
-            className="jb-ghost"
-            title="Turn the sheet: swap width and height"
-            disabled={!!sheet.data.sizeLocked}
-            onClick={() => resize(height, width)}
-          >
-            ⟲
-          </button>
           <button
             type="button"
             data-ref="sheet-lock-size"
@@ -459,11 +473,6 @@ const Insert = ({ discipline }: { discipline: string }) => {
           + Sheet
         </button>
       </div>
-      <p className="jb-hint">
-        PDFs and images: the paperclip in the toolbar, or drop them on the
-        board. Tables: the ⋮ menu in the toolbar. Connect shapes by dragging
-        from a dot beside a selected one.
-      </p>
     </details>
   );
 };
@@ -491,7 +500,7 @@ const BoardSettingsPanel = ({ canEdit }: { canEdit: boolean }) => {
               value={settings.colorBy}
               onChange={(e) => update({ colorBy: e.target.value as ColorBy })}
             >
-              <option value="discipline">discipline</option>
+              <option value="discipline">phase</option>
               <option value="status">status</option>
             </select>
           </Field>
@@ -505,32 +514,6 @@ const BoardSettingsPanel = ({ canEdit }: { canEdit: boolean }) => {
             <PaperOptions units={settings.units} />
           </select>
         </Field>
-        <div className="jb-row">
-          <Field label="Orientation">
-            <select
-              value={settings.orientation}
-              onChange={(e) =>
-                update({ orientation: e.target.value as Orientation })
-              }
-            >
-              <option value="landscape">landscape</option>
-              <option value="portrait">portrait</option>
-            </select>
-          </Field>
-          <Field label="Connectors">
-            <select
-              data-ref="connector-style"
-              value={settings.connector}
-              onChange={(e) =>
-                update({ connector: e.target.value as ConnectorStyle })
-              }
-            >
-              <option value="round">curved</option>
-              <option value="elbow">elbow</option>
-              <option value="sharp">straight</option>
-            </select>
-          </Field>
-        </div>
         <label className="jb-check">
           <input
             type="checkbox"
@@ -538,16 +521,8 @@ const BoardSettingsPanel = ({ canEdit }: { canEdit: boolean }) => {
             checked={settings.snapFrames}
             onChange={(e) => update({ snapFrames: e.target.checked })}
           />
-          Frame tool (F) snaps to this paper
+          Frame tool snaps to this paper
         </label>
-        <div className="jb-legend">
-          {(settings.colorBy === "status" ? STATUSES : DISCIPLINES).map((x) => (
-            <span key={x.name}>
-              <span className="jb-chip" style={{ background: x.color }} />
-              {x.name}
-            </span>
-          ))}
-        </div>
       </fieldset>
     </details>
   );
@@ -591,24 +566,19 @@ export const SheetsPanel = ({
 
   const selected = sheets.find((s) => s.frame.id === selectedFrameId) ?? null;
 
-  /** renumber a discipline in the given order: S-101, S-102, ... */
-  const renumber = (ordered: Sheet[], code: string) => {
+  /** put a phase's sheets in this order; their page numbers follow */
+  const reorder = (ordered: Sheet[]) => {
     if (!api) {
       return;
     }
     updateSheets(
       api,
-      new Map(
-        ordered.map((s, i) => [
-          s.frame.id,
-          { patch: { number: numberFor(code, i) } },
-        ]),
-      ),
+      new Map(ordered.map((s, i) => [s.frame.id, { patch: { order: i } }])),
       settings.colorBy,
     );
   };
 
-  const dropOn = (target: Sheet, group: Sheet[], code: string) => {
+  const dropOn = (target: Sheet, group: Sheet[]) => {
     const from = group.find((s) => s.frame.id === dragging.current);
     dragging.current = null;
     if (!from || from === target) {
@@ -616,7 +586,7 @@ export const SheetsPanel = ({
     }
     const rest = group.filter((s) => s !== from);
     rest.splice(rest.indexOf(target), 0, from);
-    renumber(rest, code);
+    reorder(rest);
   };
 
   return (
@@ -667,31 +637,18 @@ export const SheetsPanel = ({
         />
 
         <div className="jb-index" data-ref="sheet-index">
-          {!sheets.length && (
-            <p className="jb-empty">
-              No sheets yet. Add one below, or draw a frame (F) and it becomes a
-              sheet.
-            </p>
-          )}
+          {!sheets.length && <p className="jb-empty">No sheets yet.</p>}
           {groups.map(({ discipline, sheets: group }) => (
             <section key={discipline.code} className="jb-group">
               <h3>
-                <span
-                  className="jb-chip"
-                  style={{ background: discipline.color }}
+                <ColorChip
+                  code={discipline.code}
+                  name={discipline.name}
+                  color={disciplineOf(discipline.code).color}
+                  canEdit={canEdit}
                 />
                 {discipline.name}
                 <span className="jb-count">{group.length}</span>
-                {canEdit && group.length > 1 && (
-                  <button
-                    type="button"
-                    className="jb-link"
-                    title="Number this discipline in reading order on the board: rows top to bottom, left to right"
-                    onClick={() => renumber(byPosition(group), discipline.code)}
-                  >
-                    renumber
-                  </button>
-                )}
               </h3>
               <ol>
                 {group.map((sheet) => (
@@ -701,7 +658,7 @@ export const SheetsPanel = ({
                     active={sheet.frame.id === selectedFrameId}
                     canEdit={canEdit && !query}
                     onDragStart={() => (dragging.current = sheet.frame.id)}
-                    onDrop={() => dropOn(sheet, group, discipline.code)}
+                    onDrop={() => dropOn(sheet, group)}
                   />
                 ))}
               </ol>

@@ -20,6 +20,8 @@ export type BoardSettings = {
   snapFrames: boolean;
   colorBy: ColorBy;
   connector: ConnectorStyle;
+  /** phase and status colors changed for this board, by code */
+  colors: Record<string, string>;
 };
 
 export const DEFAULT_SETTINGS: BoardSettings = {
@@ -29,6 +31,7 @@ export const DEFAULT_SETTINGS: BoardSettings = {
   snapFrames: true,
   colorBy: "discipline",
   connector: "round",
+  colors: {},
 };
 
 export const readSettings = (raw: unknown): BoardSettings => ({

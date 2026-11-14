@@ -34,6 +34,8 @@ import {
   adoptFrames,
   enforceSheetSizes,
   recolorSheets,
+  setColorOverrides,
+  syncPageNumbers,
   syncTitleBlocks,
   viewportOffsets,
 } from "./sheets";
@@ -208,6 +210,7 @@ const Editor = ({
         version.current = v;
         const loaded = readSettings(scene?.jobbook);
         settingsRef.current = loaded;
+        setColorOverrides(loaded.colors);
         setSettings(loaded);
         return {
           elements: scene?.elements ?? [],
@@ -314,6 +317,7 @@ const Editor = ({
           if (!api.isDestroyed) {
             if (config.canEdit) {
               adoptFrames(api, settingsRef.current, { snap: true });
+              syncPageNumbers(api, settingsRef.current.colorBy);
               enforceSheetSizes(api, lockedSheets.current);
             }
             syncTitleBlocks(api, config.project, settingsRef.current.colorBy);
@@ -349,6 +353,7 @@ const Editor = ({
     (editor: ExcalidrawImperativeAPI) => {
       if (config.canEdit) {
         adoptFrames(editor, settingsRef.current, { snap: false });
+        syncPageNumbers(editor, settingsRef.current.colorBy);
       }
       syncTitleBlocks(editor, config.project, settingsRef.current.colorBy);
       syncTables(editor);
@@ -404,9 +409,12 @@ const Editor = ({
       if (!api || !config.canEdit) {
         return;
       }
-      if (patch.colorBy) {
-        // the frames carry their color, so a new scheme rewrites them; the
-        // change that makes then saves the setting with it
+      if (patch.colors) {
+        setColorOverrides(next.colors);
+      }
+      if (patch.colorBy || patch.colors) {
+        // the frames carry their color, so a new scheme or color rewrites
+        // them; the change that makes then saves the setting with it
         recolorSheets(api, next.colorBy);
         return;
       }
@@ -564,6 +572,10 @@ const Editor = ({
           handleKeyboardGlobally
           autoFocus
           UIOptions={{
+            // the full properties panel (stroke style, align, layers) on any
+            // screen but a phone, instead of the compact one below 1180px
+            getFormFactor: (width: number, height: number) =>
+              Math.min(width, height) < 500 ? "phone" : "desktop",
             canvasActions: {
               toggleTheme: true,
               export: { saveFileToDisk: true },

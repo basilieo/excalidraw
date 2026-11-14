@@ -78,12 +78,13 @@ const pick = <T extends { code: string; name: string }>(
 const COLUMNS: Col[] = [
   {
     key: "number",
-    label: "Number",
-    width: 90,
+    label: "Page",
+    width: 60,
     kind: "text",
     show: (s) => s.data.number,
     raw: (s) => s.data.number,
-    parse: (v) => ({ patch: { number: v.trim() } }),
+    // pages are numbered for you, from each sheet's place in the set
+    parse: () => null,
   },
   {
     key: "title",
@@ -489,7 +490,9 @@ export const SheetTable = ({ onClose }: { onClose: () => void }) => {
         data-ref="sheet-table"
       >
         <div className="jb-st-head">
-          <b>Sheets</b>
+          <b title="Select cells (click, shift-click, drag) and type, pick or paste to change them all. ⌘D fills down.">
+            Sheets
+          </b>
           <span className="jb-st-note">
             {sheets.length} sheet{sheets.length === 1 ? "" : "s"}
             {selCount > 1 ? ` · ${selCount} cells selected` : ""}
@@ -498,10 +501,6 @@ export const SheetTable = ({ onClose }: { onClose: () => void }) => {
                   skipped === 1 ? "" : "s"
                 } couldn't take that value`
               : ""}
-          </span>
-          <span className="jb-st-hint">
-            Type to overwrite every selected cell · paste from a spreadsheet ·
-            ⌘D fills down
           </span>
           <button type="button" className="jb-st-close" onClick={onClose}>
             List view

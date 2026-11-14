@@ -11,12 +11,12 @@
 import {
   sceneCoordsToViewportCoords,
   useExcalidrawAPI,
+  viewportCoordsToSceneCoords,
 } from "@excalidraw/excalidraw";
 import { useEffect, useRef, useState } from "react";
 
 import { isTitleBlockPart } from "./sheets";
 import { isTableAnchor } from "./table/render";
-import { useSettings } from "./settings";
 
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 import type { AppState } from "@excalidraw/excalidraw/types";
@@ -58,7 +58,28 @@ const dotsFor = (el: ExcalidrawElement, appState: AppState): Dot[] => {
   });
 };
 
-const target = (appState: AppState, elements: readonly ExcalidrawElement[]) => {
+/** a shape the dots can go on */
+const connectable = (el: ExcalidrawElement | undefined) =>
+  !!el &&
+  !el.isDeleted &&
+  CONNECTABLE.has(el.type) &&
+  !el.locked &&
+  !el.angle &&
+  !isTitleBlockPart(el) &&
+  // a table has its own handle and toolbar
+  !isTableAnchor(el) &&
+  // a box inside a grouped table connects as the table, not a cell
+  !el.groupIds.length;
+
+/**
+ * Where the dots go: the selected shape if one is, otherwise the shape under
+ * the pointer.
+ */
+const target = (
+  appState: AppState,
+  elements: readonly ExcalidrawElement[],
+  hoveredId: string | null,
+) => {
   if (
     appState.activeTool.type !== "selection" ||
     appState.selectedElementsAreBeingDragged ||
@@ -71,31 +92,42 @@ const target = (appState: AppState, elements: readonly ExcalidrawElement[]) => {
     return null;
   }
   const ids = Object.keys(appState.selectedElementIds);
-  if (ids.length !== 1) {
+  if (ids.length > 1) {
     return null;
   }
-  const el = elements.find((e) => e.id === ids[0] && !e.isDeleted);
-  if (
-    !el ||
-    !CONNECTABLE.has(el.type) ||
-    el.locked ||
-    el.angle ||
-    isTitleBlockPart(el) ||
-    // a table has its own handle and toolbar
-    isTableAnchor(el) ||
-    // a box inside a grouped table connects as the table, not a cell
-    el.groupIds.length
-  ) {
-    return null;
+  const id = ids[0] ?? hoveredId;
+  const el = id ? elements.find((e) => e.id === id) : undefined;
+  return connectable(el) ? el! : null;
+};
+
+/** the topmost connectable shape at a point on the board, with a margin so
+ * the pointer can travel out to a dot without losing it */
+const shapeAt = (
+  elements: readonly ExcalidrawElement[],
+  x: number,
+  y: number,
+  margin: number,
+) => {
+  for (let i = elements.length - 1; i >= 0; i--) {
+    const el = elements[i];
+    if (
+      connectable(el) &&
+      x >= el.x - margin &&
+      x <= el.x + el.width + margin &&
+      y >= el.y - margin &&
+      y <= el.y + el.height + margin
+    ) {
+      return el;
+    }
   }
-  return el;
+  return null;
 };
 
 export const Connectors = () => {
   const api = useExcalidrawAPI();
-  const { settings } = useSettings();
   const [dots, setDots] = useState<Dot[]>([]);
   const busy = useRef(false);
+  const hovered = useRef<string | null>(null);
 
   useEffect(() => {
     if (!api) {
@@ -106,7 +138,9 @@ export const Connectors = () => {
       elements: readonly ExcalidrawElement[],
       appState: AppState,
     ) => {
-      const el = busy.current ? null : target(appState, elements);
+      const el = busy.current
+        ? null
+        : target(appState, elements, hovered.current);
       const next = el ? dotsFor(el, appState) : [];
       const key = next.map((d) => `${d.x | 0},${d.y | 0}`).join(";");
       if (key !== last) {
@@ -120,9 +154,38 @@ export const Connectors = () => {
     const offScroll = api.onScrollChange(() =>
       update(api.getSceneElements(), api.getAppState()),
     );
+    // dots also show on the shape under the pointer
+    let frame = 0;
+    const onMove = (e: PointerEvent) => {
+      if (e.buttons || (e.target as Element)?.closest?.(".jb-dot")) {
+        return;
+      }
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const appState = api.getAppState();
+        const elements = api.getSceneElements();
+        const p = viewportCoordsToSceneCoords(
+          { clientX: e.clientX, clientY: e.clientY },
+          appState,
+        );
+        const over = (e.target as Element)?.closest?.(
+          ".excalidraw__canvas, .jb-dot",
+        )
+          ? shapeAt(elements, p.x, p.y, 34 / appState.zoom.value)
+          : null;
+        const id = over?.id ?? null;
+        if (id !== hovered.current) {
+          hovered.current = id;
+          update(elements, appState);
+        }
+      });
+    };
+    document.addEventListener("pointermove", onMove, { passive: true });
     return () => {
       offChange();
       offScroll();
+      cancelAnimationFrame(frame);
+      document.removeEventListener("pointermove", onMove);
     };
   }, [api]);
 
@@ -135,9 +198,7 @@ export const Connectors = () => {
     event.stopPropagation();
     busy.current = true;
     setDots([]);
-    api.updateScene({
-      appState: { currentItemArrowType: settings.connector },
-    });
+    // the arrow is whatever type was last picked for arrows
     api.setActiveTool({ type: "arrow" });
     const canvas = document.querySelector<HTMLCanvasElement>(
       ".excalidraw__canvas.interactive",

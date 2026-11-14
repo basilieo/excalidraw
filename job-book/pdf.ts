@@ -14,7 +14,7 @@ import {
 } from "@excalidraw/excalidraw";
 
 import { PX_PER_IN } from "./paper";
-import { getSheets, nextNumber, sheetColor } from "./sheets";
+import { getSheets, sheetColor } from "./sheets";
 
 import type { BoardSettings } from "./settings";
 import type { SheetData } from "./sheets";
@@ -125,7 +125,7 @@ export const importPdf = async (
 
     if (options.asSheets) {
       const data: SheetData = {
-        number: nextNumber(sheets, options.discipline),
+        number: "", // the page number is set for it
         discipline: options.discipline,
         status: "draft",
         revision: "0",

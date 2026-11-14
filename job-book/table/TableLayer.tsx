@@ -720,18 +720,15 @@ const CellEditor = ({
         }}
         onPointerDown={(e) => e.stopPropagation()}
       />
-      <div className="jb-cell-hint" style={{ left: cell.x, top: cell.y - 22 }}>
-        <b>
-          {isHeader(cell)
-            ? "column name"
-            : cellName(data, cell.rowId, cell.colId)}
-        </b>
-        {preview !== null ? (
+      {preview !== null && (
+        <div
+          className="jb-cell-hint"
+          style={{ left: cell.x, top: cell.y - 22 }}
+        >
+          <b>{cellName(data, cell.rowId, cell.colId)}</b>
           <span> = {preview || "…"}</span>
-        ) : !isHeader(cell) && layout.rows.length ? (
-          <span> type = for a formula</span>
-        ) : null}
-      </div>
+        </div>
+      )}
     </>
   );
 };
@@ -1008,7 +1005,12 @@ const SortPanel = ({
   update: (f: (t: TableData) => TableData) => void;
 }) => (
   <div className="jb-panel-rows">
-    <div className="jb-panel-title">Sort by</div>
+    <div
+      className="jb-panel-title"
+      title="Sorting changes the view only: formulas still refer to rows by their number"
+    >
+      Sort by
+    </div>
     <div className="jb-panel-row">
       <select
         value={data.sort?.colId ?? ""}
@@ -1046,10 +1048,6 @@ const SortPanel = ({
         <option value="desc">Z → A, 9 → 1</option>
       </select>
     </div>
-    <p className="jb-panel-note">
-      Sorting changes the view only. Formulas still refer to rows by their
-      number (the grey numbers at the left).
-    </p>
   </div>
 );
 
