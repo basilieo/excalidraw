@@ -360,3 +360,503 @@ body,
   margin-right: 0.4rem;
   vertical-align: 0.15em;
 }
+
+/* tables: a transparent layer over each table's drawing (table/TableLayer) */
+
+.jb-tables {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  --jb-accent: var(--color-primary, #6965db);
+  --jb-cell-bg: #ffffff;
+  --jb-cell-ink: #1e1e1e;
+  --jb-chrome-bg: #ffffff;
+  --jb-chrome-ink: #1e1e1e;
+  --jb-chrome-line: #dee2e6;
+  --jb-muted: #868e96;
+}
+.jb-tables.is-dark {
+  /* the board inverts in dark mode; the editing cell follows it */
+  --jb-cell-bg: #121212;
+  --jb-cell-ink: #e3e3e8;
+  --jb-chrome-bg: #232329;
+  --jb-chrome-ink: #e3e3e8;
+  --jb-chrome-line: #3d3d45;
+}
+.jb-table {
+  position: fixed;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.jb-cell {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: auto;
+  cursor: cell;
+}
+.jb-table.is-selected .jb-cell,
+.jb-table.is-selected .jb-col-grip {
+  /* the table is selected as a whole: clicks go to the board to move it */
+  pointer-events: none;
+}
+.jb-table.is-selected {
+  outline: 2px solid var(--jb-accent);
+  outline-offset: 0;
+}
+.jb-cell:hover {
+  background: rgba(105, 101, 219, 0.06);
+}
+.jb-cell.is-active {
+  box-shadow: inset 0 0 0 2px var(--jb-accent);
+  z-index: 1;
+}
+.jb-col-grip {
+  position: absolute;
+  top: 0;
+  width: 8px;
+  cursor: col-resize;
+  pointer-events: auto;
+  z-index: 2;
+}
+.jb-col-grip:hover {
+  background: rgba(105, 101, 219, 0.35);
+}
+.jb-col-guide {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  background: var(--jb-accent);
+  z-index: 3;
+}
+.jb-cell-editor {
+  position: absolute;
+  box-sizing: border-box;
+  margin: 0;
+  border: 2px solid var(--jb-accent);
+  border-radius: 0;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  font-family: Helvetica, Arial, sans-serif;
+  background: var(--jb-cell-bg);
+  color: var(--jb-cell-ink);
+  pointer-events: auto;
+  z-index: 4;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+.jb-cell-editor.is-header {
+  font-weight: 700;
+}
+.jb-cell-hint {
+  position: absolute;
+  z-index: 5;
+  white-space: nowrap;
+  font: 12px/18px ui-monospace, Menlo, monospace;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--jb-accent);
+  color: #fff;
+  pointer-events: none;
+}
+.jb-ref {
+  position: absolute;
+  font: 11px/1 Helvetica, Arial, sans-serif;
+  color: var(--jb-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.jb-ref-col {
+  top: -16px;
+  height: 14px;
+}
+.jb-ref-row {
+  left: -24px;
+  width: 20px;
+}
+
+/* screen-size chrome: the table's handle, add bars, toolbars */
+
+.jb-table-handle {
+  position: fixed;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--jb-accent);
+  background: var(--jb-chrome-bg);
+  cursor: move;
+  pointer-events: auto;
+  z-index: 3;
+}
+.jb-table-handle:hover,
+.jb-table-handle.is-on {
+  background: var(--jb-accent);
+}
+.jb-add-row,
+.jb-add-col {
+  position: fixed;
+  padding: 0;
+  border: 1px dashed var(--jb-chrome-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--jb-muted);
+  font: 14px/1 Helvetica, Arial, sans-serif;
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.jb-add-row {
+  height: 18px;
+}
+.jb-add-col {
+  width: 18px;
+}
+.jb-add-row:hover,
+.jb-add-col:hover,
+.jb-table:hover ~ .jb-add-row,
+.jb-table:hover ~ .jb-add-col {
+  opacity: 1;
+}
+.jb-add-row:hover,
+.jb-add-col:hover {
+  border-color: var(--jb-accent);
+  color: var(--jb-accent);
+}
+.jb-table-bar {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px;
+  border-radius: 8px;
+  background: var(--jb-chrome-bg);
+  color: var(--jb-chrome-ink);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+  font: 12px Helvetica, Arial, sans-serif;
+  pointer-events: auto;
+  white-space: nowrap;
+  z-index: 6;
+}
+.jb-table-bar button,
+.jb-table-panel button,
+.jb-table-panel select,
+.jb-table-panel input {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+.jb-table-bar button:hover,
+.jb-table-panel button:hover {
+  background: rgba(105, 101, 219, 0.1);
+}
+.jb-table-bar button.is-on {
+  background: rgba(105, 101, 219, 0.18);
+  color: var(--jb-accent);
+}
+.jb-table-bar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.jb-bar-label {
+  font-weight: 700;
+  padding: 0 6px;
+  color: var(--jb-muted);
+}
+.jb-bar-note {
+  padding: 0 6px;
+  color: var(--jb-muted);
+}
+.jb-bar-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--jb-chrome-line);
+}
+.jb-table-bar .jb-swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--jb-chrome-line);
+  font-size: 10px;
+  line-height: 16px;
+}
+.jb-table-bar .jb-swatch.is-on {
+  outline: 2px solid var(--jb-accent);
+}
+.jb-table-panel {
+  position: fixed;
+  min-width: 300px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--jb-chrome-bg);
+  color: var(--jb-chrome-ink);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+  font: 12px Helvetica, Arial, sans-serif;
+  pointer-events: auto;
+  z-index: 7;
+}
+.jb-table-panel select,
+.jb-table-panel input {
+  border-color: var(--jb-chrome-line);
+  cursor: auto;
+}
+.jb-table-panel input {
+  width: 7rem;
+}
+.jb-panel-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.jb-panel-title {
+  font-weight: 700;
+}
+.jb-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.jb-panel-and {
+  width: 2.2em;
+  color: var(--jb-muted);
+}
+.jb-panel-add {
+  align-self: flex-start;
+  color: var(--jb-accent) !important;
+}
+.jb-panel-note {
+  margin: 0;
+  max-width: 320px;
+  color: var(--jb-muted);
+  line-height: 1.35;
+}
+
+.jb-ghost.is-on {
+  border-color: var(--color-primary, #6965db);
+  background: rgba(105, 101, 219, 0.12);
+}
+.jb-ghost:disabled,
+.jb-panel select:disabled,
+.jb-panel input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* the save status, one icon in the bottom bar */
+.jb-sync {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--border-radius-lg, 0.5rem);
+  background: var(--island-bg-color, transparent);
+  box-shadow: var(--shadow-island, none);
+  color: var(--color-gray-50, #868e96);
+  pointer-events: auto;
+}
+.jb-sync.is-saved {
+  color: var(--color-success, #2f9e44);
+}
+.jb-sync.is-saving {
+  color: var(--color-primary, #6965db);
+}
+.jb-sync.is-problem {
+  color: #e03131;
+}
+.jb-sync.is-spinning svg {
+  animation: jb-spin 1s linear infinite;
+}
+@keyframes jb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* the paperclip, sized and shaped like the toolbar's own tool buttons */
+.jb-tool-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--lg-button-size, 2.25rem);
+  height: var(--lg-button-size, 2.25rem);
+  padding: 0;
+  border: none;
+  border-radius: var(--border-radius-lg, 0.5rem);
+  background: transparent;
+  color: var(--icon-fill-color, inherit);
+  cursor: pointer;
+}
+.jb-tool-button:hover {
+  background: var(--button-hover-bg, rgba(0, 0, 0, 0.05));
+}
+.jb-tool-button.is-busy {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+/* sheet index: list / table switch */
+.jb-views {
+  display: inline-flex;
+  margin-top: 0.4rem;
+  border: 1px solid var(--default-border-color, #ddd);
+  border-radius: 6px;
+  overflow: hidden;
+  align-self: flex-start;
+}
+.jb-views button {
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.7rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.jb-views button.is-on {
+  background: var(--color-primary, #6965db);
+  color: #fff;
+}
+
+/* sheet index as a table, over the board */
+.jb-sheet-table-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.12);
+  --st-bg: #ffffff;
+  --st-ink: #1e1e1e;
+  --st-line: #e9ecef;
+  --st-head: #f8f9fa;
+  --st-muted: #868e96;
+  --st-sel: rgba(105, 101, 219, 0.12);
+  --st-accent: #6965db;
+}
+.jb-sheet-table-wrap.is-dark {
+  background: rgba(0, 0, 0, 0.35);
+  --st-bg: #232329;
+  --st-ink: #e3e3e8;
+  --st-line: #34343c;
+  --st-head: #2b2b33;
+  --st-sel: rgba(168, 165, 255, 0.18);
+  --st-accent: #a8a5ff;
+}
+.jb-sheet-table {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: 64px;
+  bottom: 64px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  background: var(--st-bg);
+  color: var(--st-ink);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+  font: 13px Helvetica, Arial, sans-serif;
+  outline: none;
+  overflow: hidden;
+}
+.jb-st-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--st-line);
+}
+.jb-st-head b {
+  font-size: 15px;
+}
+.jb-st-note,
+.jb-st-hint {
+  color: var(--st-muted);
+}
+.jb-st-hint {
+  margin-left: auto;
+  font-size: 12px;
+}
+.jb-st-close {
+  font: inherit;
+  padding: 0.25rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid var(--st-line);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.jb-st-scroll {
+  flex: 1;
+  overflow: auto;
+}
+.jb-sheet-table table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  user-select: none;
+}
+.jb-sheet-table th,
+.jb-sheet-table td {
+  height: 30px;
+  padding: 0 8px;
+  border-right: 1px solid var(--st-line);
+  border-bottom: 1px solid var(--st-line);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+.jb-sheet-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--st-head);
+  font-weight: 700;
+  cursor: s-resize;
+}
+.jb-sheet-table td {
+  cursor: cell;
+}
+.jb-sheet-table td.is-sel {
+  background: var(--st-sel);
+}
+.jb-sheet-table td.is-focus {
+  box-shadow: inset 0 0 0 2px var(--st-accent);
+}
+.jb-sheet-table td.is-locked {
+  color: var(--st-muted);
+}
+.jb-st-gutter {
+  width: 46px;
+  min-width: 46px;
+  cursor: default !important;
+}
+.jb-st-gutter button {
+  border: none;
+  background: none;
+  color: var(--st-accent);
+  cursor: pointer;
+  font: inherit;
+  padding: 0 0 0 6px;
+}
+.jb-sheet-table td input,
+.jb-sheet-table td select {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  color: inherit;
+  background: var(--st-bg);
+  border: 1px solid var(--st-accent);
+  border-radius: 3px;
+  padding: 3px 4px;
+}
+.jb-st-empty {
+  padding: 1rem;
+  color: var(--st-muted);
+}

@@ -120,6 +120,10 @@ const ExtraToolsDropdown = ({
         onSelect={() => setIsExtraToolsMenuOpen(false)}
         className="App-toolbar__extra-tools-dropdown"
       >
+        {/* job book (fork): the host's own entries come first */}
+        {app.props.renderExtraToolsItems?.(() =>
+          setIsExtraToolsMenuOpen(false),
+        )}
         {UIOptions.tools?.image !== false && (
           <DropdownMenu.Item
             onSelect={() => app.setActiveTool({ type: "image" })}
@@ -308,6 +312,9 @@ export const Toolbar = ({
         <TextToolButton {...toolProps} />
         <StickyNoteToolButton {...toolProps} />
         <EraserToolButton {...toolProps} />
+
+        {/* job book (fork): the host's own toolbar buttons */}
+        {app.props.renderToolbarExtras?.()}
 
         <div
           className="App-toolbar__divider"

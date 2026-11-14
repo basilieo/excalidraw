@@ -984,6 +984,13 @@ export interface ExcalidrawProps {
     isMobile: boolean,
     appState: UIAppState,
   ) => JSX.Element | null;
+  /** job book (fork): extra buttons at the end of the main toolbar */
+  renderToolbarExtras?: () => React.ReactNode;
+  /**
+   * job book (fork): extra entries at the end of the toolbar's more-tools
+   * (⋮) menu; `close` shuts the menu
+   */
+  renderExtraToolsItems?: (close: () => void) => React.ReactNode;
   langCode?: Language["code"];
   viewModeEnabled?: boolean;
   /**

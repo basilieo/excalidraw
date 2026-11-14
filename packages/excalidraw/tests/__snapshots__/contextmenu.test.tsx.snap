@@ -855,6 +855,7 @@ exports[`contextMenu element > right-clicking on a group should select whole gro
         },
       },
       {
+        "PanelComponent": [Function],
         "icon": [Function],
         "keyTest": [Function],
         "label": [Function],
@@ -5714,6 +5715,7 @@ exports[`contextMenu element > shows 'Group selection' in context menu for multi
         },
       },
       {
+        "PanelComponent": [Function],
         "icon": [Function],
         "keyTest": [Function],
         "label": [Function],
@@ -6949,6 +6951,7 @@ exports[`contextMenu element > shows 'Ungroup selection' in context menu for gro
         },
       },
       {
+        "PanelComponent": [Function],
         "icon": [Function],
         "keyTest": [Function],
         "label": [Function],
@@ -8989,6 +8992,7 @@ exports[`contextMenu element > shows context menu for element > [end of test] ap
         },
       },
       {
+        "PanelComponent": [Function],
         "icon": [Function],
         "keyTest": [Function],
         "label": [Function],
@@ -9994,6 +9998,7 @@ exports[`contextMenu element > shows context menu for element > [end of test] ap
         },
       },
       {
+        "PanelComponent": [Function],
         "icon": [Function],
         "keyTest": [Function],
         "label": [Function],

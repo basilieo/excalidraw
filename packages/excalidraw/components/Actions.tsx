@@ -214,6 +214,7 @@ export const SelectedShapeActions = ({
           <div className="buttonList">
             {renderAction("duplicateSelection")}
             {renderAction("deleteSelectedElements")}
+            {renderAction("toggleElementLock")}
             {renderAction("group")}
             {renderAction("ungroup")}
             {predicates.link && renderAction("hyperlink")}
@@ -580,6 +581,7 @@ const CombinedExtraActions = ({
                   {predicates.cropEditor && renderAction("cropEditor")}
                   {showDuplicate && renderAction("duplicateSelection")}
                   {showDelete && renderAction("deleteSelectedElements")}
+                  {renderAction("toggleElementLock")}
                 </div>
               </fieldset>
             </div>
@@ -712,6 +714,13 @@ export const CompactShapeActions = ({
       {predicates.showExtraActions && (
         <div className="compact-action-item">
           {renderAction("deleteSelectedElements")}
+        </div>
+      )}
+
+      {/* job book (fork): lock / unlock the selection */}
+      {predicates.showExtraActions && (
+        <div className="compact-action-item">
+          {renderAction("toggleElementLock")}
         </div>
       )}
 

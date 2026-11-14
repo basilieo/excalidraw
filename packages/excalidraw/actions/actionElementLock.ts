@@ -11,7 +11,12 @@ import { CaptureUpdateAction } from "@excalidraw/element";
 
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
+import { createElement } from "react";
+
+import { IconButton } from "../components/IconButton";
 import { LockedIcon, UnlockedIcon } from "../components/icons";
+import { t } from "../i18n";
+import { getShortcutKey } from "../shortcut";
 
 import { getSelectedElements } from "../scene";
 
@@ -39,6 +44,26 @@ export const actionToggleElementLock = register({
     return shouldLock(selectedElements) ? LockedIcon : UnlockedIcon;
   },
   trackEvent: { category: "element" },
+  // job book (fork): a lock button in the selected shape's properties
+  // panel, beside duplicate and delete, as well as in the context menu
+  PanelComponent: ({ elements, appState, updateData, app }) => {
+    const selected = app.scene.getSelectedElements({
+      selectedElementIds: appState.selectedElementIds,
+      includeBoundTextElement: false,
+    });
+    const lock = shouldLock(selected);
+    const label = t(
+      lock ? "labels.elementLock.lock" : "labels.elementLock.unlock",
+    );
+    return createElement(IconButton, {
+      type: "button",
+      icon: lock ? UnlockedIcon : LockedIcon,
+      title: `${label} — ${getShortcutKey("CtrlOrCmd+Shift+L")}`,
+      "aria-label": label,
+      onClick: () => updateData(null),
+      disabled: !selected.length,
+    });
+  },
   predicate: (elements, appState, _, app) => {
     const selectedElements = app.scene.getSelectedElements(appState);
     return (

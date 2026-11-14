@@ -24,6 +24,13 @@ order on the board.
 - `paper.ts`: paper sizes and units, 100 px to the inch
 - `pdf.ts`: PDF pages in as images (pdf.js, loaded on first use)
 - `table.ts`: a plain grouped grid of boxes
+- `table/`: Numbers-style tables. `model.ts` (data, sort, filter),
+  `formula.ts` (+ tests), `layout.ts` (wrapping, row heights), `render.ts`
+  (the locked canvas drawing, kept in step like title blocks) and
+  `TableLayer.tsx` (click-to-type cells, the table handle, toolbars)
+- `SheetTable.tsx`: the sheet index as a spreadsheet, for bulk edits
+- `Attach.tsx`: the paperclip and the ⋮ menu's "Attach PDF or image"
+- `SyncStatus.tsx`: the save status icon in the bottom bar
 - `Connectors.tsx`: the four dots beside a selected shape; dragging one
   starts Excalidraw's own arrow tool at that edge, so binding and routing are
   the editor's
@@ -35,6 +42,15 @@ Kept small so merging upstream stays easy. `getFrameSheetAccent` in
 `customData.sheetColor`; the frame label (`components/App.tsx`), the canvas
 outline (`renderElement.ts`) and SVG export (`staticSvgScene.ts`) use it.
 Frames without those fields look exactly as upstream.
+
+Also small, and marked `job book (fork)` in the code:
+
+- `renderToolbarExtras` and `renderExtraToolsItems` props
+  (`types.ts`, `index.tsx`, `components/Toolbar.tsx`): the host adds buttons
+  to the main toolbar and entries to its ⋮ more-tools menu.
+- The lock action (`actions/actionElementLock.ts`) gets a button, shown in
+  the selected shape's left panel beside duplicate and delete
+  (`components/Actions.tsx`).
 
 ## Running
 

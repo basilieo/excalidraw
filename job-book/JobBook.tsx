@@ -3,6 +3,7 @@ import {
   Excalidraw,
   ExcalidrawAPIProvider,
   FONT_FAMILY,
+  Footer,
   MainMenu,
   Sidebar,
   THEME,
@@ -12,12 +13,24 @@ import {
 } from "@excalidraw/excalidraw";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  AttachButton,
+  AttachPicker,
+  openAttachPicker,
+  PaperclipIcon,
+  TableIcon,
+} from "./Attach";
 import { Connectors } from "./Connectors";
+import { SheetTable, SheetTableViewContext } from "./SheetTable";
+import { SyncStatus } from "./SyncStatus";
+import { createTable, syncTables } from "./table/render";
+import { TableLayer } from "./table/TableLayer";
 import { importPdf, isPdf } from "./pdf";
 import { DEFAULT_SETTINGS, readSettings, SettingsContext } from "./settings";
 import { SHEETS_SIDEBAR, SheetsPanel } from "./SheetsPanel";
 import {
   adoptFrames,
+  enforceSheetSizes,
   recolorSheets,
   syncTitleBlocks,
   viewportOffsets,
@@ -175,8 +188,11 @@ const Editor = ({
   const currentKey = useRef<string | null>(null);
   const saveTimer = useRef<number | undefined>(undefined);
   const syncQueued = useRef(false);
+  const moveQueued = useRef(false);
+  const lockedSheets = useRef(new Map());
   const inputDevice = useRef(readInputDevice());
   const [settings, setSettings] = useState<BoardSettings>(DEFAULT_SETTINGS);
+  const [tableView, setTableView] = useState(false);
   const settingsRef = useRef<BoardSettings>(DEFAULT_SETTINGS);
 
   const set = (s: Status) => {
@@ -269,17 +285,36 @@ const Editor = ({
         appState.isRotating ||
         !!appState.newElement;
 
-      // a frame drawn with the frame tool becomes a numbered sheet, and title
-      // blocks follow their frames, but not mid-drag
+      // a table being dragged carries its drawing along with it
+      if (
+        busy &&
+        appState.selectedElementsAreBeingDragged &&
+        !moveQueued.current
+      ) {
+        moveQueued.current = true;
+        requestAnimationFrame(() => {
+          moveQueued.current = false;
+          if (!api.isDestroyed) {
+            syncTables(api, { moving: true });
+          }
+        });
+      }
+
+      // a frame drawn with the frame tool becomes a numbered sheet, a locked
+      // sheet keeps its size, title blocks and tables follow their data;
+      // none of it mid-drag
       if (!busy && !syncQueued.current) {
         syncQueued.current = true;
-        requestAnimationFrame(() => {
+        // a timer, not a frame: a background tab gets no frames
+        window.setTimeout(() => {
           syncQueued.current = false;
           if (!api.isDestroyed) {
             if (config.canEdit) {
               adoptFrames(api, settingsRef.current, { snap: true });
+              enforceSheetSizes(api, lockedSheets.current);
             }
             syncTitleBlocks(api, config.project, settingsRef.current.colorBy);
+            syncTables(api);
           }
         });
       }
@@ -313,6 +348,8 @@ const Editor = ({
         adoptFrames(editor, settingsRef.current, { snap: false });
       }
       syncTitleBlocks(editor, config.project, settingsRef.current.colorBy);
+      syncTables(editor);
+      enforceSheetSizes(editor, lockedSheets.current);
       // what loaded counts as saved, even after title blocks are brought up
       // to date. The panel and the zoom wait a moment: the editor is still
       // applying the loaded scene's state during this callback.
@@ -496,94 +533,123 @@ const Editor = ({
 
   return (
     <SettingsContext.Provider value={{ settings, update: updateSettings }}>
-      <Excalidraw
-        initialData={initialData}
-        onChange={onChange}
-        onInitialize={onInitialize}
-        name={config.name}
-        theme={theme}
-        onThemeChange={(t) => {
-          if (t === "system") {
+      <SheetTableViewContext.Provider value={{ tableView, setTableView }}>
+        <Excalidraw
+          initialData={initialData}
+          onChange={onChange}
+          onInitialize={onInitialize}
+          name={config.name}
+          theme={theme}
+          onThemeChange={(t) => {
+            if (t === "system") {
+              try {
+                localStorage.removeItem("theme");
+              } catch {}
+              setTheme(readTheme());
+              return;
+            }
+            setTheme(t);
             try {
-              localStorage.removeItem("theme");
+              localStorage.setItem("theme", t);
             } catch {}
-            setTheme(readTheme());
-            return;
+          }}
+          viewModeEnabled={!config.canEdit}
+          handleKeyboardGlobally
+          autoFocus
+          UIOptions={{
+            canvasActions: {
+              toggleTheme: true,
+              export: { saveFileToDisk: true },
+              loadScene: false,
+            },
+          }}
+          renderToolbarExtras={() => (config.canEdit ? <AttachButton /> : null)}
+          renderExtraToolsItems={(close) =>
+            config.canEdit ? (
+              <>
+                <MainMenu.Item
+                  icon={PaperclipIcon}
+                  data-ref="attach-menu"
+                  onSelect={() => {
+                    close();
+                    openAttachPicker();
+                  }}
+                >
+                  Attach PDF or image…
+                </MainMenu.Item>
+                <MainMenu.Item
+                  icon={TableIcon}
+                  data-ref="add-table"
+                  onSelect={() => {
+                    close();
+                    if (api) {
+                      createTable(api, 5, 4);
+                    }
+                  }}
+                >
+                  Table
+                </MainMenu.Item>
+              </>
+            ) : null
           }
-          setTheme(t);
-          try {
-            localStorage.setItem("theme", t);
-          } catch {}
-        }}
-        viewModeEnabled={!config.canEdit}
-        handleKeyboardGlobally
-        autoFocus
-        UIOptions={{
-          canvasActions: {
-            toggleTheme: true,
-            export: { saveFileToDisk: true },
-            loadScene: false,
-          },
-        }}
-        renderTopRightUI={() => (
-          <div className="jb-topright">
-            <span
-              className={`jb-status is-${status}`}
-              data-ref="save-status"
-              title={STATUS_LABEL[status]}
-            >
-              {STATUS_LABEL[status]}
-            </span>
-            <Sidebar.Trigger
-              name={SHEETS_SIDEBAR}
-              title="Sheet index"
-              className="jb-trigger"
-            >
-              Sheets
-            </Sidebar.Trigger>
-          </div>
-        )}
-      >
-        <MainMenu>
-          {config.listUrl && (
-            <MainMenu.ItemLink href={config.listUrl}>
-              All job books
-            </MainMenu.ItemLink>
+          renderTopRightUI={() => (
+            <div className="jb-topright">
+              <Sidebar.Trigger
+                name={SHEETS_SIDEBAR}
+                title="Sheet index"
+                className="jb-trigger"
+              >
+                Sheets
+              </Sidebar.Trigger>
+            </div>
           )}
-          {config.canEdit && config.templateUrl && (
-            <MainMenu.Item onSelect={saveAsTemplate}>
-              Save as template
-            </MainMenu.Item>
-          )}
-          <MainMenu.DefaultItems.SaveToActiveFile />
-          <MainMenu.DefaultItems.Export />
-          <MainMenu.DefaultItems.SaveAsImage />
-          <MainMenu.DefaultItems.SearchMenu />
-          <MainMenu.DefaultItems.Help />
-          <MainMenu.DefaultItems.Preferences />
-          <MainMenu.Separator />
-          <MainMenu.DefaultItems.ToggleTheme allowSystemTheme={false} />
-          <MainMenu.DefaultItems.ChangeCanvasBackground />
-        </MainMenu>
-        {/* Excalidraw's library panel, labeled, beside the Sheets button.
+        >
+          <MainMenu>
+            {config.listUrl && (
+              <MainMenu.ItemLink href={config.listUrl}>
+                All job books
+              </MainMenu.ItemLink>
+            )}
+            {config.canEdit && config.templateUrl && (
+              <MainMenu.Item onSelect={saveAsTemplate}>
+                Save as template
+              </MainMenu.Item>
+            )}
+            <MainMenu.DefaultItems.SaveToActiveFile />
+            <MainMenu.DefaultItems.Export />
+            <MainMenu.DefaultItems.SaveAsImage />
+            <MainMenu.DefaultItems.SearchMenu />
+            <MainMenu.DefaultItems.Help />
+            <MainMenu.DefaultItems.Preferences />
+            <MainMenu.Separator />
+            <MainMenu.DefaultItems.ToggleTheme allowSystemTheme={false} />
+            <MainMenu.DefaultItems.ChangeCanvasBackground />
+          </MainMenu>
+          {/* Excalidraw's library panel, labeled, beside the Sheets button.
             "Browse libraries" in it opens libraries.excalidraw.com; what is
             added there comes back to the team's shared library. */}
-        <DefaultSidebar.Trigger
-          tab="library"
-          title="Shape library"
-          className="jb-trigger"
-        >
-          Library
-        </DefaultSidebar.Trigger>
-        <SheetsPanel
-          boardName={config.name}
-          listUrl={config.listUrl}
-          canEdit={config.canEdit}
-          isTemplate={!!config.isTemplate}
-          status={{ key: status, label: STATUS_LABEL[status] }}
-        />
-      </Excalidraw>
-      {config.canEdit && <Connectors />}
+          <DefaultSidebar.Trigger
+            tab="library"
+            title="Shape library"
+            className="jb-trigger"
+          >
+            Library
+          </DefaultSidebar.Trigger>
+          <SheetsPanel
+            boardName={config.name}
+            listUrl={config.listUrl}
+            canEdit={config.canEdit}
+            isTemplate={!!config.isTemplate}
+          />
+          {config.canEdit && <AttachPicker />}
+          <Footer>
+            <SyncStatus status={status} label={STATUS_LABEL[status]} />
+          </Footer>
+        </Excalidraw>
+        {tableView && <SheetTable onClose={() => setTableView(false)} />}
+        <TableLayer canEdit={config.canEdit} />
+        {config.canEdit && <Connectors />}
+      </SheetTableViewContext.Provider>
     </SettingsContext.Provider>
   );
 };

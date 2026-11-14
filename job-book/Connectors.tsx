@@ -15,6 +15,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { isTitleBlockPart } from "./sheets";
+import { isTableAnchor } from "./table/render";
 import { useSettings } from "./settings";
 
 import type { ExcalidrawElement } from "@excalidraw/element/types";
@@ -80,6 +81,8 @@ const target = (appState: AppState, elements: readonly ExcalidrawElement[]) => {
     el.locked ||
     el.angle ||
     isTitleBlockPart(el) ||
+    // a table has its own handle and toolbar
+    isTableAnchor(el) ||
     // a box inside a grouped table connects as the table, not a cell
     el.groupIds.length
   ) {

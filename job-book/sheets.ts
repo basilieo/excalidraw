@@ -64,6 +64,8 @@ export type SheetData = {
   revision: string;
   issued: string;
   titleBlock: boolean;
+  /** the sheet keeps its size: a resize springs back (enforceSheetSizes) */
+  sizeLocked?: boolean;
 };
 
 export type Sheet = {
@@ -573,5 +575,52 @@ export const syncTitleBlocks = (
     // derived from the frames, like a remote update: never its own undo step
     captureUpdate: CaptureUpdateAction.NEVER,
   });
+  return true;
+};
+
+// ---------------------------------------------------------------------------
+// locked sizes
+
+type Rect = { x: number; y: number; width: number; height: number };
+
+/**
+ * A size-locked sheet that has been resized goes back to where and how big
+ * it was. Excalidraw can't refuse a resize while it happens, so this puts it
+ * right after: `lastGood` remembers each locked sheet's last rectangle at its
+ * locked size (moving it is fine and is remembered too).
+ */
+export const enforceSheetSizes = (
+  api: ExcalidrawImperativeAPI,
+  lastGood: Map<string, Rect>,
+): boolean => {
+  const fixes = new Map<string, Rect>();
+  for (const sheet of getSheets(api.getSceneElements())) {
+    const f = sheet.frame;
+    if (!sheet.data.sizeLocked) {
+      lastGood.delete(f.id);
+      continue;
+    }
+    const good = lastGood.get(f.id);
+    const sameSize =
+      good &&
+      Math.abs(good.width - f.width) < 0.5 &&
+      Math.abs(good.height - f.height) < 0.5;
+    if (!good || sameSize) {
+      lastGood.set(f.id, { x: f.x, y: f.y, width: f.width, height: f.height });
+    } else {
+      fixes.set(f.id, good);
+    }
+  }
+  if (!fixes.size) {
+    return false;
+  }
+  api.updateScene({
+    elements: api.getSceneElementsIncludingDeleted().map((el) => {
+      const r = fixes.get(el.id);
+      return r ? newElementWith(el, r) : el;
+    }),
+    captureUpdate: CaptureUpdateAction.NEVER,
+  });
+  api.setToast({ message: "That sheet's size is locked", duration: 1500 });
   return true;
 };

@@ -17,8 +17,9 @@ import {
   paperPx,
   PAPERS,
 } from "./paper";
-import { importPdf } from "./pdf";
 import { useSettings } from "./settings";
+import { useSheetTableView } from "./SheetTable";
+import { useSheets } from "./useSheets";
 import {
   addSheet,
   byPosition,
@@ -37,72 +38,12 @@ import {
   updateSheets,
   type Sheet,
 } from "./sheets";
-import { insertTable } from "./table";
 
 import type { Orientation } from "./paper";
 import type { ColorBy, ConnectorStyle } from "./settings";
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 export const SHEETS_SIDEBAR = "sheets";
-
-type Snapshot = { sheets: Sheet[]; selectedFrameId: string | null };
-
-// The panel re-renders only when the sheets or the selected sheet change,
-// not on every pointer move.
-const frameKey = (elements: readonly ExcalidrawElement[]) =>
-  elements
-    .filter(isSheetFrame)
-    .map(
-      (f) =>
-        `${f.id}|${f.name}|${JSON.stringify(f.customData ?? {})}|${Math.round(
-          f.x,
-        )}|${Math.round(f.y)}|${Math.round(f.width)}|${Math.round(f.height)}`,
-    )
-    .join("\n");
-
-const useSheets = (): Snapshot => {
-  const api = useExcalidrawAPI();
-  const [snap, setSnap] = useState<Snapshot>({
-    sheets: [],
-    selectedFrameId: null,
-  });
-  const last = useRef("");
-
-  useEffect(() => {
-    if (!api) {
-      return;
-    }
-    const read = (
-      elements: readonly ExcalidrawElement[],
-      selected: Record<string, true>,
-    ) => {
-      const frames = elements.filter(isSheetFrame);
-      const selectedFrame =
-        frames.find((f) => selected[f.id]) ??
-        // an element inside a sheet counts as being on that sheet
-        frames.find((f) =>
-          elements.some((el) => selected[el.id] && el.frameId === f.id),
-        );
-      const key = `${frameKey(elements)}#${selectedFrame?.id ?? ""}`;
-      if (key !== last.current) {
-        last.current = key;
-        setSnap({
-          sheets: getSheets(elements),
-          selectedFrameId: selectedFrame?.id ?? null,
-        });
-      }
-    };
-    read(api.getSceneElements(), api.getAppState().selectedElementIds);
-    return api.onChange((elements, appState) =>
-      read(
-        elements.filter((el) => !el.isDeleted),
-        appState.selectedElementIds,
-      ),
-    );
-  }, [api]);
-
-  return snap;
-};
 
 const Field = ({
   label,
@@ -307,6 +248,7 @@ const SheetEditor = ({
         <Field label="Paper">
           <select
             data-ref="sheet-paper"
+            disabled={!!sheet.data.sizeLocked}
             value={paper?.paper.id ?? "custom"}
             onChange={(e) => {
               if (e.target.value !== "custom") {
@@ -323,6 +265,7 @@ const SheetEditor = ({
           <Field label={`W (${units})`}>
             <CommitInput
               data-ref="sheet-width"
+              disabled={!!sheet.data.sizeLocked}
               inputMode="decimal"
               value={formatLength(width, units)}
               onCommit={(v) => {
@@ -336,6 +279,7 @@ const SheetEditor = ({
           <Field label={`H (${units})`}>
             <CommitInput
               data-ref="sheet-height"
+              disabled={!!sheet.data.sizeLocked}
               inputMode="decimal"
               value={formatLength(height, units)}
               onCommit={(v) => {
@@ -350,9 +294,31 @@ const SheetEditor = ({
             type="button"
             className="jb-ghost"
             title="Turn the sheet: swap width and height"
+            disabled={!!sheet.data.sizeLocked}
             onClick={() => resize(height, width)}
           >
             ⟲
+          </button>
+          <button
+            type="button"
+            data-ref="sheet-lock-size"
+            className={`jb-ghost${sheet.data.sizeLocked ? " is-on" : ""}`}
+            aria-pressed={!!sheet.data.sizeLocked}
+            title={
+              sheet.data.sizeLocked
+                ? "Size locked: resizing springs back. Click to unlock."
+                : "Lock the sheet's size, so it can be moved but not resized"
+            }
+            onClick={() =>
+              updateSheet(
+                api,
+                id,
+                { patch: { sizeLocked: !sheet.data.sizeLocked } },
+                colorBy,
+              )
+            }
+          >
+            {sheet.data.sizeLocked ? "🔒" : "🔓"}
           </button>
         </div>
         <label className="jb-check">
@@ -456,11 +422,6 @@ const Insert = ({ discipline }: { discipline: string }) => {
   const api = useExcalidrawAPI();
   const { settings } = useSettings();
   const [newDiscipline, setNewDiscipline] = useState(discipline);
-  const [pdfAsSheets, setPdfAsSheets] = useState(true);
-  const [rows, setRows] = useState(5);
-  const [cols, setCols] = useState(4);
-  const [busy, setBusy] = useState(false);
-  const file = useRef<HTMLInputElement>(null);
   if (!api) {
     return null;
   }
@@ -498,83 +459,10 @@ const Insert = ({ discipline }: { discipline: string }) => {
           + Sheet
         </button>
       </div>
-      <div className="jb-add">
-        <button
-          type="button"
-          data-ref="add-pdf"
-          disabled={busy}
-          onClick={() => file.current?.click()}
-        >
-          {busy ? "Reading PDF…" : "+ PDF"}
-        </button>
-        <label className="jb-check">
-          <input
-            type="checkbox"
-            checked={pdfAsSheets}
-            onChange={(e) => setPdfAsSheets(e.target.checked)}
-          />
-          each page a sheet
-        </label>
-        <input
-          ref={file}
-          type="file"
-          accept="application/pdf,.pdf"
-          hidden
-          onChange={async (e) => {
-            const f = e.target.files?.[0];
-            e.target.value = "";
-            if (!f) {
-              return;
-            }
-            setBusy(true);
-            try {
-              await importPdf(api, f, {
-                asSheets: pdfAsSheets,
-                discipline: newDiscipline,
-                settings,
-              });
-            } catch (error: any) {
-              api.setToast({
-                message: `Could not read ${f.name}: ${error?.message ?? error}`,
-                closable: true,
-                duration: Infinity,
-              });
-            } finally {
-              setBusy(false);
-            }
-          }}
-        />
-      </div>
-      <div className="jb-add">
-        <button
-          type="button"
-          data-ref="add-table"
-          onClick={() => insertTable(api, rows, cols)}
-        >
-          + Table
-        </button>
-        <input
-          type="number"
-          min={1}
-          max={60}
-          value={rows}
-          aria-label="Rows"
-          onChange={(e) => setRows(parseInt(e.target.value, 10) || 1)}
-        />
-        <span className="jb-times">rows ×</span>
-        <input
-          type="number"
-          min={1}
-          max={20}
-          value={cols}
-          aria-label="Columns"
-          onChange={(e) => setCols(parseInt(e.target.value, 10) || 1)}
-        />
-        <span className="jb-times">cols</span>
-      </div>
       <p className="jb-hint">
-        A PDF can also be dropped on the board. Drag from a dot beside a
-        selected shape to connect it to another.
+        PDFs and images: the paperclip in the toolbar, or drop them on the
+        board. Tables: the ⋮ menu in the toolbar. Connect shapes by dragging
+        from a dot beside a selected one.
       </p>
     </details>
   );
@@ -670,19 +558,19 @@ export const SheetsPanel = ({
   listUrl,
   canEdit,
   isTemplate,
-  status,
 }: {
   boardName: string;
   listUrl: string | null;
   canEdit: boolean;
   isTemplate: boolean;
-  /** save status, as the top-right corner shows it (hidden behind a docked panel) */
-  status: { key: string; label: string };
 }) => {
   const api = useExcalidrawAPI();
   const { settings } = useSettings();
   const { sheets, selectedFrameId } = useSheets();
   const [query, setQuery] = useState("");
+  const { tableView, setTableView } = useSheetTableView();
+  const view: "list" | "table" = tableView ? "table" : "list";
+  const setView = (v: "list" | "table") => setTableView(v === "table");
   const dragging = useRef<string | null>(null);
 
   const groups = useMemo(() => {
@@ -744,14 +632,29 @@ export const SheetsPanel = ({
             {isTemplate && <span className="jb-template">template</span>}
             {boardName}
           </div>
-          <div
-            className={`jb-status is-${status.key}`}
-            data-ref="panel-save-status"
-          >
-            {status.label}
+          <div className="jb-views" role="group" aria-label="Sheet index view">
+            <button
+              type="button"
+              className={view === "list" ? "is-on" : ""}
+              aria-pressed={view === "list"}
+              onClick={() => setView("list")}
+            >
+              List
+            </button>
+            <button
+              type="button"
+              data-ref="sheet-table-view"
+              className={view === "table" ? "is-on" : ""}
+              aria-pressed={view === "table"}
+              onClick={() => setView("table")}
+              title="Every sheet as a row: edit names, revisions, statuses and more in bulk"
+            >
+              Table
+            </button>
           </div>
         </div>
       </Sidebar.Header>
+
       <div className="jb-panel">
         <input
           className="jb-search"
