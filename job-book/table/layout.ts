@@ -178,7 +178,12 @@ export const layoutTable = (
 
   // header row: the column names
   const header = columns.map((c) =>
-    cellFor(HEADER_KEY, c, 0, c.name, { bold: true, align: "left" }),
+    // bold unless the header cell says otherwise
+    cellFor(HEADER_KEY, c, 0, c.name, {
+      bold: true,
+      align: "left",
+      ...(t.styles[styleKey(HEADER_KEY, c.id)] ?? {}),
+    }),
   );
   const headerHeight = Math.max(
     minRow,

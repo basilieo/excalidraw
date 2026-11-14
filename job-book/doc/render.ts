@@ -16,7 +16,7 @@ import {
 } from "@excalidraw/excalidraw";
 import { randomInteger } from "@excalidraw/common";
 
-import { followAnchors } from "../table/render";
+import { followAnchors, partsAboveAnchors } from "../table/render";
 
 import { layoutDoc } from "./layout";
 
@@ -359,11 +359,13 @@ export const syncDocs = (
     existing.filter((el) => !freshIds.has(el.id)).forEach(remove);
   }
 
-  if (!replace.size && !add.length) {
+  const out = [...all.map((el) => replace.get(el.id) ?? el), ...add];
+  const restacked = partsAboveAnchors(out, PART_KEY);
+  if (!replace.size && !add.length && !restacked) {
     return false;
   }
   api.updateScene({
-    elements: [...all.map((el) => replace.get(el.id) ?? el), ...add],
+    elements: restacked ?? out,
     captureUpdate: CaptureUpdateAction.NEVER,
   });
   return true;

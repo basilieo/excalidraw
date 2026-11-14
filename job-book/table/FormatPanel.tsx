@@ -64,6 +64,8 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 export type Selection = {
   /** the data cells selected (not the header row) */
   cells: { rowId: string; colId: string }[];
+  /** the cells to style: the data cells and any header cells */
+  styleCells: { rowId: string; colId: string }[];
   rowIds: string[];
   colIds: string[];
   /** the focused cell's column */
@@ -854,9 +856,11 @@ const DraftInput = ({
 
 // ---------------------------------------------------------------------------
 
+/** the focused cell's style; header cells are bold unless they say not */
 const focusStyleOf = (data: TableData, selection: Selection): CellStyle =>
-  (selection.rowId && data.styles[`${selection.rowId}:${selection.colId}`]) ||
-  {};
+  selection.rowId
+    ? data.styles[`${selection.rowId}:${selection.colId}`] ?? {}
+    : { bold: true, ...(data.styles[`__header:${selection.colId}`] ?? {}) };
 
 const CellTab = ({
   data,
@@ -1049,8 +1053,8 @@ const TextTab = ({
   const focus = focusStyleOf(data, selection);
   const look = lookOf(data);
   const restyle = (patch: CellStyle) =>
-    update((t) => setStyles(t, selection.cells, patch));
-  const none = !selection.cells.length;
+    update((t) => setStyles(t, selection.styleCells, patch));
+  const none = !selection.styleCells.length;
   const aligns: [Align, React.ReactNode, string][] = [
     ["left", AlignLeftIcon, "Align left"],
     ["center", AlignCenterIcon, "Align center"],

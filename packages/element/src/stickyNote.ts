@@ -470,7 +470,10 @@ export const getStickyNoteDateLabel = (
  * the data floor, where the band would overlap the top padding.
  */
 export const getStickyNoteFooter = (
-  element: Pick<ExcalidrawStickyNoteElement, "created" | "width" | "height">,
+  element: Pick<
+    ExcalidrawStickyNoteElement,
+    "created" | "width" | "height" | "customData"
+  >,
   now = Date.now(),
 ) => {
   if (
@@ -485,11 +488,13 @@ export const getStickyNoteFooter = (
       STICKY_NOTE_FOOTER.minBodyWidthForYear,
     now,
   });
-  if (!text) {
+  // job book (fork): who wrote the note, before its date
+  const author = (element.customData as any)?.author as string | undefined;
+  if (!text && !author) {
     return null;
   }
   return {
-    text,
+    text: author ? (text ? `${author} · ${text}` : author) : text!,
     x: element.width - STICKY_NOTE_PADDING,
     y: element.height - STICKY_NOTE_FOOTER.baselineFromBottom,
   };

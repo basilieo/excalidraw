@@ -2180,6 +2180,10 @@ class App extends React.Component<AppProps, AppState> {
         : null;
 
     return nonDeletedFramesLikes.map((f) => {
+      // job book (fork): a hidden frame's name goes with it
+      if (this.props.isElementHidden?.(f)) {
+        return null;
+      }
       // The name is a decoration that follows the frame's render overrides,
       // except while it's being edited: editing is interaction and keeps to
       // document geometry like everything else interactive. Culling by the
@@ -2355,7 +2359,7 @@ class App extends React.Component<AppProps, AppState> {
 
     const {
       elementsMap: renderableElementsMap,
-      visibleElements,
+      visibleElements: allVisibleElements,
       canvasNonce,
       /**
        * element to draw on the <NewElementCanvas> for optimization purposes.
@@ -2377,6 +2381,9 @@ class App extends React.Component<AppProps, AppState> {
         this.state.selectedElementsAreBeingDragged,
       frameToHighlight: this.state.frameToHighlight,
     });
+    // job book (fork): hidden elements stay off the canvas; the filtered
+    // list is kept until the scene or the hidden set changes
+    const visibleElements = this.withoutHidden(allVisibleElements);
     this.visibleElements = visibleElements;
     this.hasRenderableElements = renderableElementsMap.size > 0;
 
@@ -6067,6 +6074,33 @@ class App extends React.Component<AppProps, AppState> {
     return null;
   }
 
+  private hiddenCache: {
+    from: readonly NonDeletedExcalidrawElement[];
+    key: string | undefined;
+    out: readonly NonDeletedExcalidrawElement[];
+  } | null = null;
+
+  /** job book (fork): the elements the host hasn't hidden */
+  private withoutHidden(
+    elements: readonly NonDeletedExcalidrawElement[],
+  ): readonly NonDeletedExcalidrawElement[] {
+    const hidden = this.props.isElementHidden;
+    if (!hidden) {
+      return elements;
+    }
+    const c = this.hiddenCache;
+    if (c && c.from === elements && c.key === this.props.hiddenKey) {
+      return c.out;
+    }
+    const out = elements.filter((el) => !hidden(el));
+    this.hiddenCache = {
+      from: elements,
+      key: this.props.hiddenKey,
+      out: out.length === elements.length ? elements : out,
+    };
+    return this.hiddenCache.out;
+  }
+
   // NOTE: Hot path for hit testing, so avoid unnecessary computations
   getElementsAtPosition(
     x: number,
@@ -6090,6 +6124,8 @@ class App extends React.Component<AppProps, AppState> {
                   !(isTextElement(element) && element.containerId)),
             )
     )
+      // job book (fork): hidden things can't be hit
+      .filter((el) => !this.props.isElementHidden?.(el))
       // job book (fork): the selection filter
       .filter(
         (el) =>

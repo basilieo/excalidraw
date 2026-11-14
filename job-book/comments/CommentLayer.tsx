@@ -164,6 +164,31 @@ export const CommentLayer = ({
     };
   }, [api]);
 
+  // clicking anywhere off the open comment closes it
+  useEffect(() => {
+    if (!open && !draft) {
+      return;
+    }
+    const away = (e: PointerEvent) => {
+      if (!(e.target as Element)?.closest?.(".jb-comment.is-active")) {
+        setOpen(null);
+        setDraft(null);
+      }
+    };
+    document.addEventListener("pointerdown", away, true);
+    return () => document.removeEventListener("pointerdown", away, true);
+  }, [open, draft]);
+
+  // a pin being dragged: where it is now, on screen
+  const [drag, setDrag] = useState<{
+    id: string;
+    startX: number;
+    startY: number;
+    x: number;
+    y: number;
+    moved: boolean;
+  } | null>(null);
+
   // Esc leaves the comment tool
   useEffect(() => {
     if (!placingNow) {
@@ -210,7 +235,25 @@ export const CommentLayer = ({
     });
   };
 
-  const shown = [...comments.filter((c) => !c.resolved), ...(draft ? [draft] : [])];
+  const shown = [...comments, ...(draft ? [draft] : [])];
+
+  /** a pin dropped somewhere new: it belongs to what's under it now */
+  const moveTo = (c: BoardComment, clientX: number, clientY: number) => {
+    const p = viewportCoordsToSceneCoords({ clientX, clientY }, appState);
+    const on = elementAt(elements, p.x, p.y);
+    save(
+      comments.map((x) =>
+        x.id === c.id
+          ? {
+              ...x,
+              x: on ? p.x - on.x : p.x,
+              y: on ? p.y - on.y : p.y,
+              elementId: on?.id,
+            }
+          : x,
+      ),
+    );
+  };
 
   return (
     <div className={`jb-comments${appState.theme === "dark" ? " is-dark" : ""}`}>
@@ -219,30 +262,72 @@ export const CommentLayer = ({
       )}
       {shown.map((c, i) => {
         const at = pinAt(c, byId);
-        const v = sceneCoordsToViewportCoords({ sceneX: at.x, sceneY: at.y }, appState);
+        const pinned = sceneCoordsToViewportCoords({ sceneX: at.x, sceneY: at.y }, appState);
+        const dragged = drag?.id === c.id && drag.moved;
+        const v = dragged ? { x: drag!.x, y: drag!.y } : pinned;
         const isDraft = c === draft;
-        const isOpen = isDraft || open === c.id;
+        const isOpen = !dragged && (isDraft || open === c.id);
         const first = c.thread[0];
         return (
           <div
             key={c.id}
-            className={`jb-comment${v.x > roomRight - 300 ? " is-left" : ""}`}
+            className={`jb-comment${v.x > roomRight - 300 ? " is-left" : ""}${
+              isOpen ? " is-active" : ""
+            }${c.resolved ? " is-resolved" : ""}`}
             style={{ left: v.x, top: v.y }}
           >
             <button
               type="button"
-              className={`jb-pin${isOpen ? " is-open" : ""}`}
-              title={first ? `${first.author}: ${first.text}` : "New comment"}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => {
+              className={`jb-pin${isOpen ? " is-open" : ""}${dragged ? " is-dragging" : ""}`}
+              title={
+                first
+                  ? `${first.author}: ${first.text}${c.resolved ? " (resolved)" : ""}`
+                  : "New comment"
+              }
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                if (e.button !== 0 || isDraft || !canEdit) {
+                  return;
+                }
+                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                setDrag({
+                  id: c.id,
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  x: pinned.x,
+                  y: pinned.y,
+                  moved: false,
+                });
+              }}
+              onPointerMove={(e) => {
+                if (drag?.id !== c.id) {
+                  return;
+                }
+                const dx = e.clientX - drag.startX;
+                const dy = e.clientY - drag.startY;
+                if (drag.moved || Math.hypot(dx, dy) > 4) {
+                  setDrag({ ...drag, moved: true, x: pinned.x + dx, y: pinned.y + dy });
+                }
+              }}
+              onPointerUp={(e) => {
+                if (drag?.id === c.id && drag.moved) {
+                  // the pin's point is its bottom-left corner
+                  moveTo(c, drag.x, drag.y);
+                  setDrag(null);
+                  e.preventDefault();
+                  return;
+                }
+                setDrag(null);
                 if (!isDraft) {
                   setDraft(null);
                   setOpen(open === c.id ? null : c.id);
                 }
               }}
             >
-              {first ? initials(first.author) : "+"}
-              {c.thread.length > 1 && <span className="jb-pin-count">{c.thread.length}</span>}
+              {c.resolved ? "✓" : first ? initials(first.author) : "+"}
+              {!c.resolved && c.thread.length > 1 && (
+                <span className="jb-pin-count">{c.thread.length}</span>
+              )}
             </button>
             {isOpen && (
               <Thread
@@ -261,8 +346,15 @@ export const CommentLayer = ({
                   }
                 }}
                 onResolve={() => {
-                  setOpen(null);
-                  save(comments.map((x) => (x.id === c.id ? { ...x, resolved: true } : x)));
+                  // resolved stays as a faded pin; open it to reopen
+                  save(
+                    comments.map((x) =>
+                      x.id === c.id ? { ...x, resolved: !x.resolved } : x,
+                    ),
+                  );
+                  if (!c.resolved) {
+                    setOpen(null);
+                  }
                 }}
                 onDelete={() => {
                   setOpen(null);
@@ -327,10 +419,21 @@ const Thread = ({
     >
       {!isNew && (
         <div className="jb-thread-head">
-          <button type="button" title="Resolve" disabled={!canEdit} onClick={onResolve}>
-            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M4 10.5l4 4 8-9" />
-            </svg>
+          <button
+            type="button"
+            title={comment.resolved ? "Reopen" : "Resolve"}
+            disabled={!canEdit}
+            onClick={onResolve}
+          >
+            {comment.resolved ? (
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 10a6 6 0 1 0 2-4.5M4 4v3.5h3.5" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 10.5l4 4 8-9" />
+              </svg>
+            )}
           </button>
           <button type="button" title="Delete the thread" disabled={!canEdit} onClick={onDelete}>
             <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

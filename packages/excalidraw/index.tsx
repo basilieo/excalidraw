@@ -90,6 +90,8 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
     directionalBoxSelection,
     simpleTextControls,
     alignFrames,
+    isElementHidden,
+    hiddenKey,
     isElementSelectable,
     langCode = defaultLang.code,
     viewModeEnabled,
@@ -240,6 +242,8 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
           directionalBoxSelection={directionalBoxSelection}
           simpleTextControls={simpleTextControls}
           alignFrames={alignFrames}
+          isElementHidden={isElementHidden}
+          hiddenKey={hiddenKey}
           isElementSelectable={isElementSelectable}
           langCode={langCode}
           viewModeEnabled={viewModeEnabled}

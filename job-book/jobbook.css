@@ -1849,3 +1849,46 @@ body.jb-table-format .excalidraw .App-menu__left {
   left: auto;
   right: 8px;
 }
+.jb-group h3.is-over {
+  box-shadow: inset 0 -2px 0 var(--color-primary, #6965db);
+}
+.jb-comment.is-resolved .jb-pin {
+  opacity: 0.45;
+  background: #868e96;
+  min-width: 22px;
+  height: 22px;
+  font-size: 10px;
+  line-height: 18px;
+}
+.jb-comment.is-resolved .jb-pin:hover,
+.jb-comment.is-resolved.is-active .jb-pin {
+  opacity: 1;
+}
+.jb-pin.is-dragging {
+  cursor: grabbing;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
+}
+.jb-comment.is-active {
+  z-index: 1;
+}
+.jb-eye {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-gray-50, #999);
+  cursor: pointer;
+}
+.jb-eye:hover {
+  color: var(--text-primary-color, #1e1e1e);
+  background: var(--button-hover-bg, rgba(0, 0, 0, 0.06));
+}
+.jb-group.is-hidden ol,
+.jb-group.is-hidden .jb-group-name {
+  opacity: 0.45;
+}
+.jb-group.is-hidden .jb-eye {
+  color: var(--color-primary, #6965db);
+}

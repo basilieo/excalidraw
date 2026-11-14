@@ -16,7 +16,7 @@ import {
 import { randomInteger } from "@excalidraw/common";
 
 import { disciplineOf, getGroups, getSheets, sortSheets, statusOf } from "../sheets";
-import { followAnchors } from "../table/render";
+import { followAnchors, partsAboveAnchors } from "../table/render";
 
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
@@ -334,11 +334,13 @@ export const syncTocs = (
     }
     existing.filter((el) => !freshIds.has(el.id)).forEach(remove);
   }
-  if (!replace.size && !add.length) {
+  const out = [...all.map((el) => replace.get(el.id) ?? el), ...add];
+  const restacked = partsAboveAnchors(out, PART_KEY);
+  if (!replace.size && !add.length && !restacked) {
     return false;
   }
   api.updateScene({
-    elements: [...all.map((el) => replace.get(el.id) ?? el), ...add],
+    elements: restacked ?? out,
     captureUpdate: CaptureUpdateAction.NEVER,
   });
   return true;

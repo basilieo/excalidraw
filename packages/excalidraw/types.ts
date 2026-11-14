@@ -1010,6 +1010,13 @@ export interface ExcalidrawProps {
    */
   alignFrames?: boolean;
   /**
+   * job book (fork): elements left off the canvas (a hidden group of
+   * sheets). `hiddenKey` changes whenever the answer may, so the editor
+   * knows to look again.
+   */
+  isElementHidden?: (element: ExcalidrawElement) => boolean;
+  hiddenKey?: string;
+  /**
    * job book (fork): a selection filter. Elements it turns down can't be
    * clicked, boxed or select-all'ed into the selection.
    */

@@ -21,6 +21,7 @@ import { useSettings } from "./settings";
 import { useSheetTableView } from "./SheetTable";
 import { useSheets } from "./useSheets";
 import { openPrint } from "./PrintDialog";
+import { toggleGroupHidden, useHiddenGroups } from "./hidden";
 import {
   addSheet,
   DISCIPLINES,
@@ -401,7 +402,7 @@ const SheetRow = ({
       }}
       onClick={() => api && goToSheet(api, sheet.frame.id)}
       onDoubleClick={() => canEdit && setRenaming(true)}
-      title="Click to go to the sheet. Double-click to rename. Drag to reorder."
+      title="Click to go to the sheet. Double-click to rename. Drag to reorder or into another group."
     >
       <span
         className="jb-bar"
@@ -440,6 +441,17 @@ const SheetRow = ({
 const SheetPlusIcon = (
   <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
     <path d="M5.5 2.5v15M14.5 2.5v15M2.5 5.5h15M2.5 14.5h15" />
+  </svg>
+);
+const EyeIcon = (
+  <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10z" />
+    <circle cx="10" cy="10" r="2.5" />
+  </svg>
+);
+const EyeClosedIcon = (
+  <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2.5 8.5c1.6 2.2 4.3 4 7.5 4s5.9-1.8 7.5-4M6 11.8l-1.3 2M14 11.8l1.3 2M10 12.5V15" />
   </svg>
 );
 const TableViewIcon = (
@@ -572,7 +584,8 @@ const AddMenus = () => {
   const api = useExcalidrawAPI();
   const { settings } = useSettings();
   const groups = useGroups();
-  const [open, setOpen] = useState<"sheet" | "group" | null>(null);
+  const { sheets, selectedFrameId } = useSheets();
+  const [open, setOpen] = useState<"group" | null>(null);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [codeTouched, setCodeTouched] = useState(false);
@@ -611,13 +624,20 @@ const AddMenus = () => {
     <div className="jb-addmenus" ref={ref}>
       <button
         type="button"
-        className={`jb-icon-btn${open === "sheet" ? " is-on" : ""}`}
+        className="jb-icon-btn"
         data-ref="add-sheet"
         title={`New sheet: ${paperById(settings.paper).name}, ${settings.orientation}, ${formatLength(
           size.width,
           settings.units,
         )} × ${formatLength(size.height, settings.units)} ${settings.units}`}
-        onClick={() => setOpen(open === "sheet" ? null : "sheet")}
+        // a sheet straight away, in the selected sheet's group (or the
+        // first); drag it to another group in the list
+        onClick={() => {
+          const sel = sheets.find((s) => s.frame.id === selectedFrameId);
+          addTo(
+            sel ? disciplineOf(sel.data.discipline).code : groups.list[0]?.code ?? "G",
+          );
+        }}
       >
         {SheetPlusIcon}
       </button>
@@ -630,22 +650,6 @@ const AddMenus = () => {
       >
         {GroupPlusIcon}
       </button>
-      {open === "sheet" && (
-        <div className="jb-pop" role="menu" data-ref="add-sheet-menu">
-          {groups.list.map((g) => (
-            <button
-              type="button"
-              role="menuitem"
-              key={g.code}
-              onClick={() => addTo(g.code)}
-            >
-              <span className="jb-chip" style={{ background: g.color }} />
-              <span className="jb-pop-code">{g.code}</span>
-              {g.name}
-            </button>
-          ))}
-        </div>
-      )}
       {open === "group" && (
         <form
           className="jb-pop jb-pop-form"
@@ -827,6 +831,16 @@ export const SheetsPanel = ({
   const view: "list" | "table" = tableView ? "table" : "list";
   const setView = (v: "list" | "table") => setTableView(v === "table");
   const dragging = useRef<string | null>(null);
+  const [dragNow, setDragNow] = useState(false);
+  useEffect(() => {
+    const end = () => setDragNow(false);
+    window.addEventListener("dragend", end);
+    window.addEventListener("drop", end);
+    return () => {
+      window.removeEventListener("dragend", end);
+      window.removeEventListener("drop", end);
+    };
+  }, []);
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -844,49 +858,55 @@ export const SheetsPanel = ({
           (s) => disciplineOf(s.data.discipline).code === d.code,
         ),
       }))
-      // a group just added shows while still empty, unless searching
+      // a group just added shows while still empty, unless searching;
+      // every group shows while a sheet is being dragged, to drop it in
       .filter(
         (g) =>
           g.sheets.length ||
-          (!q && !DISCIPLINES.some((d) => d.code === g.discipline.code)),
+          (!q &&
+            (dragNow || !DISCIPLINES.some((d) => d.code === g.discipline.code))),
       );
-  }, [sheets, query, settings.groups, settings.colors]);
+  }, [sheets, query, settings.groups, settings.colors, dragNow]);
   const groupEdit = useGroups();
+  const hiddenGroups = useHiddenGroups();
 
   const selected = sheets.find((s) => s.frame.id === selectedFrameId) ?? null;
 
-  /** put a phase's sheets in this order; their page numbers follow */
-  const reorder = (ordered: Sheet[]) => {
-    if (!api) {
+  /**
+   * A sheet dropped on another: it goes just before it, in that sheet's
+   * group (moving groups if it came from another). Dropped on a group's
+   * heading (`target` null), it goes to the end of that group.
+   */
+  const dropOn = (target: Sheet | null, group: Sheet[], code: string) => {
+    const from = sheets.find((s) => s.frame.id === dragging.current);
+    dragging.current = null;
+    if (!api || !from || from === target) {
       return;
     }
+    const rest = group.filter((s) => s.frame.id !== from.frame.id);
+    rest.splice(target ? rest.indexOf(target) : rest.length, 0, from);
+    const moving = disciplineOf(from.data.discipline).code !== code;
     updateSheets(
       api,
-      new Map(ordered.map((s, i) => [s.frame.id, { patch: { order: i } }])),
+      new Map(
+        rest.map((s, i) => [
+          s.frame.id,
+          {
+            patch:
+              s === from && moving
+                ? { order: i, discipline: code }
+                : { order: i },
+          },
+        ]),
+      ),
       settings.colorBy,
     );
-  };
-
-  const dropOn = (target: Sheet, group: Sheet[]) => {
-    const from = group.find((s) => s.frame.id === dragging.current);
-    dragging.current = null;
-    if (!from || from === target) {
-      return;
-    }
-    const rest = group.filter((s) => s !== from);
-    rest.splice(rest.indexOf(target), 0, from);
-    reorder(rest);
   };
 
   return (
     <Sidebar name={SHEETS_SIDEBAR} docked className="jb-sidebar">
       <Sidebar.Header>
         <div className="jb-header">
-          {listUrl && (
-            <a className="jb-back" href={listUrl} data-ref="back">
-              ← job books
-            </a>
-          )}
           <div className="jb-board" title={boardName}>
             {isTemplate && <span className="jb-template">template</span>}
             {boardName}
@@ -913,14 +933,40 @@ export const SheetsPanel = ({
         <div className="jb-index" data-ref="sheet-index">
           {!sheets.length && <p className="jb-empty">No sheets yet.</p>}
           {groups.map(({ discipline, sheets: group }) => (
-            <section key={discipline.code} className="jb-group">
-              <h3>
+            <section
+              key={discipline.code}
+              className={`jb-group${hiddenGroups.has(discipline.code) ? " is-hidden" : ""}`}
+            >
+              <h3
+                onDragOver={(e) => {
+                  if (dragging.current) {
+                    e.preventDefault();
+                    e.currentTarget.classList.add("is-over");
+                  }
+                }}
+                onDragLeave={(e) => e.currentTarget.classList.remove("is-over")}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.remove("is-over");
+                  dropOn(null, group, discipline.code);
+                }}
+              >
                 <ColorChip
                   code={discipline.code}
                   name={discipline.name}
                   color={disciplineOf(discipline.code).color}
                   canEdit={canEdit}
                 />
+                <button
+                  type="button"
+                  className="jb-eye"
+                  data-ref={`hide.${discipline.code}`}
+                  title={hiddenGroups.has(discipline.code) ? "Show these sheets" : "Hide these sheets"}
+                  aria-pressed={hiddenGroups.has(discipline.code)}
+                  onClick={() => toggleGroupHidden(discipline.code)}
+                >
+                  {hiddenGroups.has(discipline.code) ? EyeClosedIcon : EyeIcon}
+                </button>
                 <InlineEdit
                   className="jb-group-name"
                   value={discipline.name}
@@ -955,8 +1001,12 @@ export const SheetsPanel = ({
                     sheet={sheet}
                     active={sheet.frame.id === selectedFrameId}
                     canEdit={canEdit && !query}
-                    onDragStart={() => (dragging.current = sheet.frame.id)}
-                    onDrop={() => dropOn(sheet, group)}
+                    onDragStart={() => {
+                      dragging.current = sheet.frame.id;
+                      // after the drag image is taken, or the list jumps under it
+                      window.setTimeout(() => setDragNow(true));
+                    }}
+                    onDrop={() => dropOn(sheet, group, discipline.code)}
                   />
                 ))}
               </ol>

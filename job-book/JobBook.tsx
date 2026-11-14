@@ -1,10 +1,12 @@
 import {
+  CaptureUpdateAction,
   DefaultSidebar,
   Excalidraw,
   ExcalidrawAPIProvider,
   FONT_FAMILY,
   Footer,
   MainMenu,
+  newElementWith,
   Sidebar,
   THEME,
   useExcalidrawAPI,
@@ -23,7 +25,6 @@ import {
 import { Connectors } from "./Connectors";
 import { SheetTable, SheetTableViewContext } from "./SheetTable";
 import { SyncStatus } from "./SyncStatus";
-import { buildNpJobBook } from "./templates/npJobBook";
 import { sendThumbnailSoon } from "./thumbnail";
 import { createTable, syncTables } from "./table/render";
 import { addDocument, DocButton, DocIcon, DocLayer } from "./doc/DocLayer";
@@ -31,8 +32,15 @@ import { syncDocs } from "./doc/render";
 import { createToc, syncTocs } from "./toc/render";
 import { SelectionFilterButton, useSelectionFilter } from "./SelectionFilter";
 import { PrintHost } from "./PrintDialog";
+import { hiddenFrames, useBoardForHidden, useHiddenGroups } from "./hidden";
 import { CommentButton, CommentLayer } from "./comments/CommentLayer";
 
+/** home: back to the job books */
+const BackIcon = (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M19 12H5M11 6l-6 6 6 6" />
+  </svg>
+);
 /** the sheets: binder dividers, a tab standing out of each */
 const SidebarIcon = (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -213,6 +221,41 @@ const Editor = ({
   useHandleLibrary({ excalidrawAPI: api, adapter: libraryAdapter });
   const [status, setStatus] = useState<Status>("loading");
   const selectionFilter = useSelectionFilter();
+
+  // sheets in hidden groups, and what's on them, stay off the board
+  useBoardForHidden(config.boardId);
+  const hiddenGroups = useHiddenGroups();
+  const hiddenGroupsRef = useRef(hiddenGroups);
+  hiddenGroupsRef.current = hiddenGroups;
+  const hiddenIds = useRef<Set<string>>(new Set());
+  const [hiddenKey, setHiddenKey] = useState("");
+  const refreshHidden = useCallback(
+    (elements: readonly ExcalidrawElement[]) => {
+      const next = hiddenFrames(elements, hiddenGroupsRef.current);
+      const key = [...next].sort().join(",");
+      if (key !== [...hiddenIds.current].sort().join(",")) {
+        hiddenIds.current = next;
+        setHiddenKey(key);
+      }
+    },
+    [],
+  );
+  useEffect(() => {
+    if (api) {
+      refreshHidden(api.getSceneElements());
+    }
+  }, [api, hiddenGroups, refreshHidden]);
+  const isHidden = useCallback(
+    (el: ExcalidrawElement) =>
+      hiddenIds.current.has(el.id) ||
+      (!!el.frameId && hiddenIds.current.has(el.frameId)),
+    [],
+  );
+  const isSelectable = useCallback(
+    (el: ExcalidrawElement) =>
+      !isHidden(el) && selectionFilter.isSelectable(el),
+    [isHidden, selectionFilter.isSelectable],
+  );
   const [theme, setTheme] = useState(readTheme);
   const statusRef = useRef<Status>("loading");
   const version = useRef(0);
@@ -313,6 +356,33 @@ const Editor = ({
       if (appState.inputDevice !== inputDevice.current) {
         inputDevice.current = appState.inputDevice;
         writeInputDevice(appState.inputDevice);
+      }
+      refreshHidden(elements);
+      // a sticky note just made is signed by whoever made it
+      if (config.canEdit && config.user && !appState.newElement) {
+        const unsigned = elements.filter(
+          (el) =>
+            el.type === "stickynote" &&
+            !(el.customData as any)?.author &&
+            Date.now() - (el as any).created < 60_000,
+        );
+        if (unsigned.length) {
+          const ids = new Set(unsigned.map((el) => el.id));
+          window.setTimeout(() =>
+            api.updateScene({
+              elements: api
+                .getSceneElementsIncludingDeleted()
+                .map((el) =>
+                  ids.has(el.id) && !(el.customData as any)?.author
+                    ? newElementWith(el, {
+                        customData: { ...el.customData, author: config.user },
+                      })
+                    : el,
+                ),
+              captureUpdate: CaptureUpdateAction.NEVER,
+            }),
+          );
+        }
       }
       const busy =
         appState.selectedElementsAreBeingDragged ||
@@ -625,7 +695,9 @@ const Editor = ({
           directionalBoxSelection
           simpleTextControls
           alignFrames
-          isElementSelectable={selectionFilter.isSelectable}
+          isElementSelectable={isSelectable}
+          isElementHidden={isHidden}
+          hiddenKey={hiddenKey}
           renderToolbarExtras={() =>
             config.canEdit ? (
               <>
@@ -700,35 +772,13 @@ const Editor = ({
         >
           <MainMenu>
             {config.listUrl && (
-              <MainMenu.ItemLink href={config.listUrl}>
-                All job books
+              <MainMenu.ItemLink href={config.listUrl} icon={BackIcon}>
+                Back to job books
               </MainMenu.ItemLink>
             )}
             {config.canEdit && config.templateUrl && (
               <MainMenu.Item onSelect={saveAsTemplate}>
                 Save as template
-              </MainMenu.Item>
-            )}
-            {config.canEdit && (
-              <MainMenu.Item
-                data-ref="lay-out-np-job-book"
-                onSelect={() => {
-                  if (!api) {
-                    return;
-                  }
-                  if (
-                    api.getSceneElements().length &&
-                    !window.confirm(
-                      "This board already has things on it. Lay out the NP job book beside them?",
-                    )
-                  ) {
-                    return;
-                  }
-                  updateSettings({ paper: "a3", orientation: "landscape" });
-                  buildNpJobBook(api, settingsRef.current);
-                }}
-              >
-                Lay out the NP job book
               </MainMenu.Item>
             )}
             <MainMenu.DefaultItems.SaveToActiveFile />

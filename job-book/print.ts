@@ -28,8 +28,21 @@ export const FORMATS: { format: PrintFormat; label: string; dpi: boolean }[] = [
 
 export const RESOLUTIONS = [72, 150, 300, 600];
 
+/** what prints: everything but sticky notes, which are for the team */
+const printable = (api: ExcalidrawImperativeAPI) => {
+  const all = api.getSceneElements();
+  const notes = new Set(all.filter((el) => el.type === "stickynote").map((el) => el.id));
+  return notes.size
+    ? all.filter(
+        (el) =>
+          !notes.has(el.id) &&
+          !((el as any).containerId && notes.has((el as any).containerId)),
+      )
+    : all;
+};
+
 const data = (api: ExcalidrawImperativeAPI) => ({
-  elements: api.getSceneElements(),
+  elements: printable(api),
   appState: {
     ...api.getAppState(),
     exportBackground: true,

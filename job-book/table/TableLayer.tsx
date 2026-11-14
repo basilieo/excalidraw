@@ -264,6 +264,9 @@ const TableOverlay = ({
     w: number;
   } | null>(null);
   const dragging = useRef(false);
+  /** the open editor, while it holds a formula that cells can be put into */
+  const formula = useRef<FormulaTarget | null>(null);
+  const picking = useRef<Cell | null>(null);
 
   const update = useCallback(
     (change: (t: TableData) => TableData) =>
@@ -293,10 +296,12 @@ const TableOverlay = ({
     }
     const rowIds = grid.rows.slice(rng.r0, rng.r1 + 1).filter((r) => r !== HEADER);
     const colIds = grid.cols.slice(rng.c0, rng.c1 + 1);
+    const styleRows = grid.rows.slice(rng.r0, rng.r1 + 1);
     return {
       rowIds,
       colIds,
       cells: rowIds.flatMap((rowId) => colIds.map((colId) => ({ rowId, colId }))),
+      styleCells: styleRows.flatMap((rowId) => colIds.map((colId) => ({ rowId, colId }))),
       colId: sel.f.c,
       rowId: sel.f.r === HEADER ? null : sel.f.r,
     };
@@ -367,11 +372,13 @@ const TableOverlay = ({
             a: { r: grid.rows[1] ?? HEADER, c: grid.cols[0] },
             f: { r: grid.rows[grid.rows.length - 1], c: grid.cols[grid.cols.length - 1] },
           });
-        } else if (e.key === "b" && selection?.cells.length) {
+        } else if (e.key === "b" && selection?.styleCells.length) {
           stop();
-          const first = selection.cells[0];
-          const bold = !data.styles[`${first.rowId}:${first.colId}`]?.bold;
-          update((t) => setStyles(t, selection.cells, { bold }));
+          const first = selection.styleCells[0];
+          const now =
+            data.styles[`${first.rowId}:${first.colId}`]?.bold ??
+            first.rowId === HEADER;
+          update((t) => setStyles(t, selection.styleCells, { bold: !now }));
         }
         // undo, copy, paste, zoom: the board's or the events below
         return;
@@ -648,6 +655,14 @@ const TableOverlay = ({
     if (!cell) {
       return;
     }
+    // typing a formula: a click puts that cell in it, a drag a range, as in
+    // Numbers; the formula keeps the keyboard
+    if (sel?.editing && formula.current?.wants() && cell.r !== HEADER) {
+      picking.current = cell;
+      formula.current.put(cellName(data, cell.r, cell.c), false);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      return;
+    }
     if (e.shiftKey && sel) {
       setSel({ ...sel, f: cell, editing: false });
       return;
@@ -669,6 +684,15 @@ const TableOverlay = ({
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
   const onMove = (e: React.PointerEvent) => {
+    if (picking.current && formula.current) {
+      const end = cellAt(e.clientX, e.clientY, true);
+      if (end && end.r !== HEADER) {
+        const a = cellName(data, picking.current.r, picking.current.c);
+        const b = cellName(data, end.r, end.c);
+        formula.current.put(a === b ? a : `${a}:${b}`, true);
+      }
+      return;
+    }
     if (!dragging.current || !sel) {
       return;
     }
@@ -679,6 +703,7 @@ const TableOverlay = ({
   };
   const onUp = () => {
     dragging.current = false;
+    picking.current = null;
   };
   const onDouble = (e: React.MouseEvent) => {
     if (locked) {
@@ -802,6 +827,7 @@ const TableOverlay = ({
       {sel?.editing && focus && (
         <CellEditor
           key={`${sel.f.r}:${sel.f.c}`}
+          formulaRef={formula}
           box={focus}
           z={z}
           fontSize={layout.fontSize}
@@ -962,7 +988,15 @@ const Refs = ({
 
 type Move = "down" | "right" | "left" | "stay";
 
+type FormulaTarget = {
+  /** whether the editor is taking cell references now */
+  wants: () => boolean;
+  /** put a reference in at the caret, or in place of the last one put */
+  put: (text: string, replaceLast: boolean) => void;
+};
+
 const CellEditor = ({
+  formulaRef,
   box,
   z,
   fontSize,
@@ -975,6 +1009,7 @@ const CellEditor = ({
   onDone,
   onCancel,
 }: {
+  formulaRef: React.MutableRefObject<FormulaTarget | null>;
   box: { x: number; y: number; w: number; h: number };
   z: number;
   fontSize: number;
@@ -1003,6 +1038,39 @@ const CellEditor = ({
   const ref = useRef<HTMLTextAreaElement & HTMLInputElement & HTMLSelectElement>(null);
   const save = useRef(onSave);
   save.current = onSave;
+  const lastPut = useRef<[number, number] | null>(null);
+  formulaRef.current = {
+    wants: () => kind === "text" && latest.current.startsWith("="),
+    put: (text, replaceLast) => {
+      const el = ref.current;
+      if (!el) {
+        return;
+      }
+      let a = el.selectionStart ?? el.value.length;
+      let b = el.selectionEnd ?? a;
+      if (replaceLast && lastPut.current) {
+        [a, b] = lastPut.current;
+      }
+      const next = el.value.slice(0, a) + text + el.value.slice(b);
+      latest.current = next;
+      setValue(next);
+      lastPut.current = [a, a + text.length];
+      const caret = a + text.length;
+      window.setTimeout(() => {
+        el.focus();
+        el.setSelectionRange(caret, caret);
+      });
+    },
+  };
+  useEffect(
+    () => () => {
+      if (formulaRef.current?.put) {
+        formulaRef.current = null;
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   // seeds typed before the editor took the keyboard
   useEffect(() => {
@@ -1069,7 +1137,7 @@ const CellEditor = ({
     lineHeight: LINE_HEIGHT,
     padding: `${PAD_Y * z - 2}px ${PAD_X * z - 2}px`,
     textAlign: value.startsWith("=") ? "left" : (align as any),
-    fontWeight: header || style.bold ? 700 : 400,
+    fontWeight: (style.bold ?? header) ? 700 : 400,
     color: style.color || undefined,
   };
   const keys = (e: React.KeyboardEvent) => {
@@ -1120,7 +1188,10 @@ const CellEditor = ({
           className="jb-cell-editor"
           style={{ ...css, padding: `0 ${PAD_X * z - 2}px` }}
           value={/^\d{4}-\d{2}-\d{2}$/.test(value) ? value : ""}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            lastPut.current = null;
+            setValue(e.target.value);
+          }}
           onBlur={() => finish("stay")}
           onKeyDown={keys}
           onPointerDown={(e) => e.stopPropagation()}
@@ -1132,7 +1203,10 @@ const CellEditor = ({
           style={css}
           value={value}
           spellCheck={false}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            lastPut.current = null;
+            setValue(e.target.value);
+          }}
           onBlur={() => finish("stay")}
           onKeyDown={keys}
           onPointerDown={(e) => e.stopPropagation()}

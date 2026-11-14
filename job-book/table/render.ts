@@ -334,7 +334,7 @@ const buildParts = (
       continue;
     }
     const part = `${isHeader(c) ? "head" : "cell"}:${c.rowId}:${c.colId}`;
-    texts.push({ part, cell: c, bold: !!c.style.bold || isHeader(c) });
+    texts.push({ part, cell: c, bold: !!c.style.bold });
     const onHeader = isHeader(c) || (c.head && look.headerColumn && !tintColumn);
     const text = {
       type: "text",
@@ -354,7 +354,7 @@ const buildParts = (
     };
     skeletons.push({ ...text, id: id(part) });
     // Excalidraw text has no bold; a second pass a hair to the right reads as one
-    if (c.style.bold || isHeader(c)) {
+    if (c.style.bold) {
       skeletons.push({ ...text, id: id(`${part}:b`) });
     }
   }
@@ -485,14 +485,51 @@ export const syncTables = (
     existing.filter((el) => !freshIds.has(el.id)).forEach(remove);
   }
 
-  if (!replace.size && !add.length) {
+  const out = [...all.map((el) => replace.get(el.id) ?? el), ...add];
+  const restacked = partsAboveAnchors(out, PART_KEY);
+  if (!replace.size && !add.length && !restacked) {
     return false;
   }
   api.updateScene({
-    elements: [...all.map((el) => replace.get(el.id) ?? el), ...add],
+    elements: restacked ?? out,
     captureUpdate: CaptureUpdateAction.NEVER,
   });
   return true;
+};
+
+/**
+ * Generated parts drawn under their anchor would be hidden by it (the
+ * anchor is an opaque page or table). That happens when the editor restacks
+ * the anchor, as it does when one is dropped onto a sheet. Returns the
+ * elements with each such anchor's parts put back right above it, or null
+ * when everything is already in order.
+ */
+export const partsAboveAnchors = (
+  elements: readonly ExcalidrawElement[],
+  partKey: string,
+): ExcalidrawElement[] | null => {
+  const at = new Map(elements.map((el, i) => [el.id, i]));
+  const bad = new Set<string>();
+  elements.forEach((el, i) => {
+    const anchorId = (el.customData as any)?.[partKey]?.anchorId as string | undefined;
+    if (anchorId && !el.isDeleted && (at.get(anchorId) ?? -1) > i) {
+      bad.add(anchorId);
+    }
+  });
+  if (!bad.size) {
+    return null;
+  }
+  const parts = new Map<string, ExcalidrawElement[]>();
+  const rest: ExcalidrawElement[] = [];
+  for (const el of elements) {
+    const anchorId = (el.customData as any)?.[partKey]?.anchorId as string | undefined;
+    if (anchorId && bad.has(anchorId)) {
+      parts.set(anchorId, [...(parts.get(anchorId) ?? []), el]);
+    } else {
+      rest.push(el);
+    }
+  }
+  return rest.flatMap((el) => (bad.has(el.id) ? [el, ...(parts.get(el.id) ?? [])] : [el]));
 };
 
 /**
