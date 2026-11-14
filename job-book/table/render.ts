@@ -18,13 +18,11 @@ import { randomInteger } from "@excalidraw/common";
 import { tableDisplay } from "./formula";
 import {
   LINE_HEIGHT,
-  FONT_SIZE,
   PAD_X,
-  PAD_Y,
   isHeader,
   layoutTable,
 } from "./layout";
-import { newTable, readTable, scaleColumns, TABLE_KEY } from "./model";
+import { lookOf, newTable, readTable, scaleColumns, TABLE_KEY } from "./model";
 
 import type { TableLayout } from "./layout";
 import type { TableData } from "./model";
@@ -36,7 +34,6 @@ const LAID_KEY = "jbTableLaidWidth";
 
 const INK = "#1e1e1e";
 const ERROR = "#e03131";
-const HEADER_FILL = "#f1f3f5";
 const EDGE = "#868e96";
 const CHECK = "#4263eb";
 const MUTED_INK = "#868e96";
@@ -141,7 +138,7 @@ export const updateTable = (
 
 const signature = (anchor: ExcalidrawElement, t: TableData) =>
   JSON.stringify([
-    "t2",
+    "t3",
     t,
     anchor.strokeColor,
     anchor.strokeStyle,
@@ -157,7 +154,9 @@ const buildParts = (
   anchor: ExcalidrawElement,
   layout: TableLayout,
   sig: string,
+  data: TableData,
 ): ExcalidrawElement[] => {
+  const look = lookOf(data);
   const ox = anchor.x;
   const oy = anchor.y;
   const id = (part: string) => `${anchor.id}:t:${part}`;
@@ -223,7 +222,29 @@ const buildParts = (
     });
   };
 
-  rect("header", 0, 0, layout.width, layout.headerHeight, HEADER_FILL);
+  if (look.header !== "transparent") {
+    rect("header", 0, 0, layout.width, layout.headerHeight, look.header);
+  }
+  // every other row tinted
+  if (look.band) {
+    layout.rows.forEach((r, i) => {
+      if (i % 2 === 1) {
+        rect(`band:${r.row.id}`, 0, r.y, layout.width, r.height, look.band!);
+      }
+    });
+  }
+  // the first column as a header too
+  if (look.headerColumn && layout.columns.length && look.header !== "transparent") {
+    const c0 = layout.columns[0];
+    rect(
+      "headcol",
+      0,
+      layout.headerHeight,
+      c0.width,
+      layout.height - layout.headerHeight,
+      look.header,
+    );
+  }
   for (const c of layout.cells) {
     if (c.style.fill) {
       rect(
@@ -238,11 +259,21 @@ const buildParts = (
   }
 
   line("h:header", 0, layout.headerHeight, layout.width, 0);
-  layout.rows.slice(0, -1).forEach((r) => {
-    line(`h:${r.row.id}`, 0, r.y + r.height, layout.width, 0, 0.5);
-  });
-  layout.columns.slice(1).forEach((c) => {
-    line(`v:${c.id}`, c.x, 0, 0, layout.height, 0.5);
+  if (look.gridH) {
+    layout.rows.slice(0, -1).forEach((r) => {
+      line(`h:${r.row.id}`, 0, r.y + r.height, layout.width, 0, 0.5);
+    });
+  }
+  layout.columns.slice(1).forEach((c, i) => {
+    if (look.gridV) {
+      line(`v:${c.id}`, c.x, 0, 0, layout.height, 0.5);
+    } else if (i === 0 && look.headerColumn) {
+      // the header column keeps its edge
+      line(`v:${c.id}`, c.x, 0, 0, layout.height, 1);
+    } else {
+      // the header row keeps its column edges
+      line(`v:${c.id}`, c.x, 0, 0, layout.headerHeight, 0.5);
+    }
   });
 
   // checkbox cells: a box, filled and ticked when checked
@@ -299,17 +330,21 @@ const buildParts = (
     }
     const part = `${isHeader(c) ? "head" : "cell"}:${c.rowId}:${c.colId}`;
     texts.push({ part, cell: c, bold: !!c.style.bold || isHeader(c) });
+    const onHeader = isHeader(c) || (c.head && look.headerColumn);
     const text = {
       type: "text",
       x: ox + c.x + PAD_X,
-      y: oy + c.y + PAD_Y,
+      y: oy + c.y + c.textY,
       text: c.lines.join("\n"),
-      fontSize: FONT_SIZE,
+      fontSize: layout.fontSize,
       fontFamily: FONT_FAMILY.Helvetica,
       lineHeight: LINE_HEIGHT,
       textAlign: c.align,
       strokeColor:
-        c.shown.startsWith("#") && !isHeader(c) ? ERROR : c.style.color ?? INK,
+        c.shown.startsWith("#") && !isHeader(c)
+          ? ERROR
+          : c.style.color ??
+            (onHeader && look.header !== "transparent" ? look.headerInk : INK),
       roughness: 0,
     };
     skeletons.push({ ...text, id: id(part) });
@@ -399,6 +434,8 @@ export const syncTables = (
     const layout = layoutTable(data, tableDisplay(data));
     if (
       scaled ||
+      // tables have square corners
+      anchor.roundness ||
       anchor.strokeColor === "transparent" ||
       Math.abs(anchor.width - layout.width) > 0.5 ||
       Math.abs(anchor.height - layout.height) > 0.5 ||
@@ -408,6 +445,7 @@ export const syncTables = (
       anchor = newElementWith(anchor, {
         width: layout.width,
         height: layout.height,
+        roundness: null,
         // tables from before the border was the anchor's own get one
         ...(anchor.strokeColor === "transparent" ? { strokeColor: EDGE } : {}),
         customData: {
@@ -424,7 +462,7 @@ export const syncTables = (
     if (existing.length && existing.every((el) => partInfo(el)?.sig === sig)) {
       continue;
     }
-    const fresh = buildParts(anchor, layout, sig);
+    const fresh = buildParts(anchor, layout, sig, data);
     const freshIds = new Set(fresh.map((el) => el.id));
     for (const el of fresh) {
       const old = byId.get(el.id);

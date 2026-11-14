@@ -1005,47 +1005,98 @@ export const actionChangeOpacity = register<ExcalidrawElement["opacity"]>({
   },
 });
 
-/** job book (fork): a font size typed in, applied on Enter or leaving */
-const FontSizeInput = ({
+/**
+ * job book (fork): the custom size, beside S, M, L and XL. It shows its
+ * size under a C like the others; click it and the number is a field to
+ * type into (Enter or leaving applies, Esc doesn't, arrows step by one).
+ */
+const FontSizeCustom = ({
   value,
+  active,
   onCommit,
 }: {
   value: number | null;
+  active: boolean;
   onCommit: (size: number) => void;
 }) => {
-  const [draft, setDraft] = useState(value ? String(Math.round(value * 10) / 10) : "");
+  const shown = value ? String(Math.round(value * 10) / 10) : "";
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(shown);
+  const ref = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    setDraft(value ? String(Math.round(value * 10) / 10) : "");
-  }, [value]);
+    if (!editing) {
+      setDraft(shown);
+    }
+  }, [shown, editing]);
+  useEffect(() => {
+    if (editing) {
+      // after the click that opened it has finished
+      const id = window.setTimeout(() => {
+        ref.current?.focus();
+        ref.current?.select();
+      });
+      return () => window.clearTimeout(id);
+    }
+  }, [editing]);
   const commit = () => {
     const n = Number(draft);
+    setEditing(false);
     if (n >= 4 && n <= 400 && n !== value) {
       onCommit(n);
-    } else {
-      setDraft(value ? String(Math.round(value * 10) / 10) : "");
     }
   };
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
   return (
-    <input
-      className="FontSize__input"
-      type="number"
-      min={4}
-      max={400}
-      step={1}
-      value={draft}
-      placeholder="—"
-      title="Font size"
-      aria-label="Font size"
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
+    <div
+      className={`FontSize__preset FontSize__custom${active ? " active" : ""}${
+        editing ? " is-editing" : ""
+      }`}
+      title="Custom size"
+      role="button"
+      tabIndex={editing ? -1 : 0}
+      onPointerDown={stop}
+      onMouseDown={stop}
+      onClick={(e) => {
+        stop(e);
+        setEditing(true);
+      }}
       onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.key === "Enter") {
-          commit();
-          (e.target as HTMLInputElement).blur();
+        if (!editing && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          setEditing(true);
         }
       }}
-    />
+    >
+      <b>C</b>
+      {editing ? (
+        <input
+          ref={ref}
+          className="FontSize__input"
+          type="number"
+          min={4}
+          max={400}
+          step={1}
+          value={draft}
+          aria-label="Font size"
+          onPointerDown={stop}
+          onMouseDown={stop}
+          onClick={stop}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Enter") {
+              commit();
+            } else if (e.key === "Escape") {
+              setDraft(shown);
+              setEditing(false);
+            }
+          }}
+        />
+      ) : (
+        <span>{shown || "—"}</span>
+      )}
+    </div>
   );
 };
 
@@ -1122,7 +1173,14 @@ export const actionChangeFontSize = register<ExcalidrawTextElement["fontSize"]>(
                   <span>{size}</span>
                 </button>
               ))}
-              <FontSizeInput value={current} onCommit={set} />
+              <FontSizeCustom
+                value={current}
+                active={
+                  current !== null &&
+                  !sizes.some(([size]) => size === current)
+                }
+                onCommit={set}
+              />
             </div>
           </fieldset>
         );

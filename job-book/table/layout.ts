@@ -7,7 +7,7 @@
 // read this, so what you click is exactly where it is drawn.
 
 import { formatCell } from "./format";
-import { isChecked, isNumeric, styleKey, viewRows } from "./model";
+import { isChecked, isNumeric, lookOf, styleKey, viewRows } from "./model";
 
 import type { Align, CellStyle, Column, Row, TableData } from "./model";
 
@@ -20,12 +20,36 @@ export const PAD_Y = 8;
 export const MIN_ROW_H = LINE_PX + PAD_Y * 2;
 
 let ctx: CanvasRenderingContext2D | null = null;
+let size = FONT_SIZE;
 const measure = (text: string) => {
   if (!ctx) {
     ctx = document.createElement("canvas").getContext("2d");
-    ctx!.font = `${FONT_SIZE}px Helvetica, Arial, sans-serif`;
   }
+  ctx!.font = `${size}px Helvetica, Arial, sans-serif`;
   return ctx!.measureText(text).width;
+};
+
+/** a line cut to fit `max`, with an ellipsis */
+const cut = (text: string, max: number) => {
+  const one = text.replace(/\n/g, " ");
+  if (measure(one) <= max) {
+    return one;
+  }
+  let t = one;
+  while (t.length > 1 && measure(`${t}…`) > max) {
+    t = t.slice(0, -1);
+  }
+  return `${t}…`;
+};
+
+/** the width a column needs to show its widest cell on one line */
+export const fitWidth = (texts: string[], fontSize = FONT_SIZE) => {
+  size = fontSize;
+  return Math.ceil(
+    Math.max(40, ...texts.flatMap((t) => t.split("\n")).map((l) => measure(l))) +
+      PAD_X * 2 +
+      2,
+  );
 };
 
 /** text broken into lines no wider than `max`, at spaces where it can */
@@ -70,6 +94,10 @@ export type CellLayout = {
   /** a checkbox column's cell: drawn as a box, ticked or not */
   checkbox?: boolean;
   checked?: boolean;
+  /** where the text starts, down from the cell's top (vertical alignment) */
+  textY: number;
+  /** a header cell: the header row, or the header column */
+  head?: boolean;
 };
 
 export type TableLayout = {
@@ -82,6 +110,8 @@ export type TableLayout = {
   cells: CellLayout[];
   /** rows the view hides (filters), for "3 of 10 rows" */
   hidden: number;
+  fontSize: number;
+  lineHeight: number;
 };
 
 const HEADER_KEY = "__header";
@@ -90,6 +120,10 @@ export const layoutTable = (
   t: TableData,
   display: (rowId: string, colId: string) => string,
 ): TableLayout => {
+  const look = lookOf(t);
+  size = look.fontSize;
+  const linePx = look.fontSize * LINE_HEIGHT;
+  const minRow = Math.max(linePx + PAD_Y * 2, look.rowHeight);
   let x = 0;
   const columns = t.columns.map((c) => {
     const col = { ...c, x };
@@ -106,8 +140,10 @@ export const layoutTable = (
     style: CellStyle,
   ): CellLayout => {
     const isHead = rowId === HEADER_KEY;
+    const headCol = !isHead && look.headerColumn && col.x === 0;
     const checkbox = !isHead && col.format === "checkbox";
     const text = isHead || checkbox ? (checkbox ? "" : shown) : formatCell(col, shown);
+    const inner = col.width - PAD_X * 2;
     return {
       rowId,
       colId: col.id,
@@ -116,15 +152,28 @@ export const layoutTable = (
       width: col.width,
       height: 0,
       shown: text,
-      lines: text ? wrap(text, col.width - PAD_X * 2) : [],
+      lines: !text ? [] : style.wrap === false ? [cut(text, inner)] : wrap(text, inner),
       align: checkbox
         ? "center"
         : style.align ??
           (isNumeric(shown) || shown.startsWith("#") ? "right" : "left"),
-      style,
+      style: headCol ? { ...style, bold: true } : style,
       checkbox,
       checked: checkbox ? isChecked(shown) : undefined,
+      textY: PAD_Y,
+      head: isHead || headCol,
     };
+  };
+  /** the text placed in a cell of its final height */
+  const place = (c: CellLayout) => {
+    const h = c.lines.length * linePx;
+    const v = c.style.valign ?? "top";
+    c.textY =
+      v === "middle"
+        ? (c.height - h) / 2
+        : v === "bottom"
+        ? c.height - h - PAD_Y
+        : PAD_Y;
   };
 
   // header row: the column names
@@ -132,10 +181,13 @@ export const layoutTable = (
     cellFor(HEADER_KEY, c, 0, c.name, { bold: true, align: "left" }),
   );
   const headerHeight = Math.max(
-    MIN_ROW_H,
-    ...header.map((h) => h.lines.length * LINE_PX + PAD_Y * 2),
+    minRow,
+    ...header.map((h) => h.lines.length * linePx + PAD_Y * 2),
   );
-  header.forEach((h) => (h.height = headerHeight));
+  header.forEach((h) => {
+    h.height = headerHeight;
+    place(h);
+  });
 
   // the rows the view shows, each as tall as its tallest cell
   const shownRows = viewRows(t, display);
@@ -153,10 +205,13 @@ export const layoutTable = (
       ),
     );
     const height = Math.max(
-      MIN_ROW_H,
-      ...rowCells.map((c) => c.lines.length * LINE_PX + PAD_Y * 2),
+      minRow,
+      ...rowCells.map((c) => c.lines.length * linePx + PAD_Y * 2),
     );
-    rowCells.forEach((c) => (c.height = height));
+    rowCells.forEach((c) => {
+      c.height = height;
+      place(c);
+    });
     rows.push({ row, y, height });
     cells.push(...rowCells);
     y += height;
@@ -171,6 +226,8 @@ export const layoutTable = (
     header,
     cells,
     hidden: t.rows.length - shownRows.length,
+    fontSize: look.fontSize,
+    lineHeight: LINE_HEIGHT,
   };
 };
 

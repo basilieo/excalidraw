@@ -1212,8 +1212,16 @@ body.jb-table-format .excalidraw .App-menu__left {
 }
 .excalidraw .FontSize__simple {
   display: flex;
+  flex-wrap: nowrap;
   align-items: stretch;
-  gap: 0.25rem;
+  gap: 0.2rem;
+}
+.excalidraw .FontSize__simple > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.excalidraw .FontSize__simple > .FontSize__custom.is-editing {
+  flex-grow: 1.6;
 }
 .excalidraw .FontSize__preset {
   display: inline-flex;
@@ -1221,7 +1229,6 @@ body.jb-table-format .excalidraw .App-menu__left {
   align-items: center;
   justify-content: center;
   gap: 1px;
-  width: 2rem;
   height: 2.5rem;
   padding: 0;
   border: 0;
@@ -1249,18 +1256,32 @@ body.jb-table-format .excalidraw .App-menu__left {
 .excalidraw .FontSize__preset.active span {
   color: inherit;
 }
+.excalidraw .FontSize__custom b {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.excalidraw .FontSize__custom.is-editing {
+  background: var(--input-bg-color, #fff);
+  box-shadow: inset 0 0 0 1px var(--color-primary, #6965db);
+}
 .excalidraw .FontSize__input {
   box-sizing: border-box;
-  width: 3.2rem;
-  height: 2.5rem;
-  padding: 0 0.3rem;
-  border: 1px solid var(--default-border-color, #dee2e6);
-  border-radius: var(--border-radius-lg, 8px);
-  background: var(--input-bg-color, #fff);
+  width: 2.6rem;
+  height: 1rem;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
   color: var(--text-primary-color, #1e1e1e);
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   text-align: center;
+  -moz-appearance: textfield;
+}
+.excalidraw .FontSize__input::-webkit-inner-spin-button,
+.excalidraw .FontSize__input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 /* under the search: table view, print, new sheet, new group */

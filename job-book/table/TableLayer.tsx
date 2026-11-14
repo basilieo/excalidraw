@@ -29,7 +29,7 @@ import { createPortal } from "react-dom";
 
 import { FormatPanel } from "./FormatPanel";
 import { cellName, tableDisplay } from "./formula";
-import { FONT_SIZE, isHeader, LINE_HEIGHT, PAD_X, PAD_Y } from "./layout";
+import { isHeader, LINE_HEIGHT, PAD_X, PAD_Y } from "./layout";
 import {
   addColumn,
   addRow,
@@ -781,6 +781,7 @@ const TableOverlay = ({
           key={`${sel.f.r}:${sel.f.c}`}
           box={focus}
           z={z}
+          fontSize={layout.fontSize}
           data={data}
           col={colOf(sel.f.c)!}
           cell={sel.f}
@@ -939,6 +940,7 @@ type Move = "down" | "right" | "left" | "stay";
 const CellEditor = ({
   box,
   z,
+  fontSize,
   data,
   col,
   cell,
@@ -950,6 +952,7 @@ const CellEditor = ({
 }: {
   box: { x: number; y: number; w: number; h: number };
   z: number;
+  fontSize: number;
   data: TableData;
   col: Column;
   cell: Cell;
@@ -1037,7 +1040,7 @@ const CellEditor = ({
     width: box.w,
     minHeight: box.h,
     height: kind === "text" ? undefined : box.h,
-    fontSize: FONT_SIZE * z,
+    fontSize: fontSize * z,
     lineHeight: LINE_HEIGHT,
     padding: `${PAD_Y * z - 2}px ${PAD_X * z - 2}px`,
     textAlign: value.startsWith("=") ? "left" : (align as any),

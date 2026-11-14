@@ -37,13 +37,64 @@ export type Column = {
   options?: string[];
 };
 export type Row = { id: string; cells: Record<string, string> };
+export type VAlign = "top" | "middle" | "bottom";
 export type CellStyle = {
   bold?: boolean;
   align?: Align;
+  valign?: VAlign;
   fill?: string;
   /** text color */
   color?: string;
+  /** false: one line, cut off at the cell's edge */
+  wrap?: boolean;
 };
+
+/** how the table as a whole looks, as Numbers' Table tab sets it */
+export type TableLook = {
+  /** the header row's fill and text color */
+  header?: string;
+  headerInk?: string;
+  /** the first column is a header too */
+  headerColumn?: boolean;
+  /** every other row tinted this color */
+  band?: string | null;
+  /** lines between rows, and between columns, in the body */
+  gridH?: boolean;
+  gridV?: boolean;
+  fontSize?: number;
+  /** the least a row is tall */
+  rowHeight?: number;
+};
+
+export const DEFAULT_FONT_SIZE = 15;
+
+/** Numbers' table styles, as header colors */
+export const TABLE_STYLES: { name: string; look: TableLook }[] = [
+  { name: "Gray", look: { header: "#e9ecef", headerInk: "#1e1e1e", headerColumn: true } },
+  { name: "Blue", look: { header: "#339af0", headerInk: "#ffffff", headerColumn: false } },
+  { name: "Green", look: { header: "#40c057", headerInk: "#ffffff", headerColumn: false } },
+  { name: "Red", look: { header: "#fa5252", headerInk: "#ffffff", headerColumn: false } },
+  { name: "Orange", look: { header: "#fd7e14", headerInk: "#ffffff", headerColumn: false } },
+  { name: "Plain", look: { header: "transparent", headerInk: "#1e1e1e", headerColumn: false } },
+];
+
+export const lookOf = (t: TableData): Required<Omit<TableLook, "band">> & {
+  band: string | null;
+} => ({
+  header: t.look?.header ?? "#f1f3f5",
+  headerInk: t.look?.headerInk ?? "#1e1e1e",
+  headerColumn: t.look?.headerColumn ?? false,
+  band: t.look?.band ?? null,
+  gridH: t.look?.gridH ?? true,
+  gridV: t.look?.gridV ?? true,
+  fontSize: t.look?.fontSize ?? DEFAULT_FONT_SIZE,
+  rowHeight: t.look?.rowHeight ?? 0,
+});
+
+export const setLook = (t: TableData, patch: TableLook): TableData => ({
+  ...t,
+  look: { ...t.look, ...patch },
+});
 
 export type FilterOp =
   | "contains"
@@ -65,6 +116,7 @@ export type TableData = {
   styles: Record<string, CellStyle>;
   sort: Sort;
   filters: Filter[];
+  look?: TableLook;
 };
 
 export const TABLE_KEY = "jbTable";
@@ -157,6 +209,7 @@ export const readTable = (raw: unknown): TableData | null => {
     styles: t.styles ?? {},
     sort: t.sort ?? null,
     filters: t.filters ?? [],
+    ...(t.look ? { look: t.look } : {}),
   };
 };
 
@@ -395,3 +448,32 @@ export const addRowBefore = (t: TableData, beforeRowId: string): TableData => {
 
 export const isChecked = (v: string) =>
   /^(true|yes|y|1|x|✓|☑|checked)$/i.test(v.trim());
+
+/** as many rows as asked: new ones at the end, or the last ones gone */
+export const setRowCount = (t: TableData, n: number): TableData => {
+  const count = Math.max(1, Math.min(500, Math.round(n)));
+  if (count === t.rows.length) {
+    return t;
+  }
+  if (count < t.rows.length) {
+    return { ...t, rows: t.rows.slice(0, count) };
+  }
+  const rows = [...t.rows];
+  while (rows.length < count) {
+    rows.push({ id: newId(), cells: {} });
+  }
+  return { ...t, rows };
+};
+
+/** as many columns as asked: new ones at the end, or the last ones gone */
+export const setColumnCount = (t: TableData, n: number): TableData => {
+  const count = Math.max(1, Math.min(52, Math.round(n)));
+  let next = t;
+  while (next.columns.length < count) {
+    next = addColumn(next);
+  }
+  while (next.columns.length > count) {
+    next = deleteColumn(next, next.columns[next.columns.length - 1].id);
+  }
+  return next;
+};
