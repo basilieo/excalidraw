@@ -19,6 +19,14 @@ order on the board.
   theme shared with the fab library
 - `storage.ts`: where a board lives (the fab library's API, or localStorage
   when run on its own)
+- `settings.ts`: the board's own settings (units, paper, frame snapping,
+  color scheme, connector style), saved in the scene under `jobbook`
+- `paper.ts`: paper sizes and units, 100 px to the inch
+- `pdf.ts`: PDF pages in as images (pdf.js, loaded on first use)
+- `table.ts`: a plain grouped grid of boxes
+- `Connectors.tsx`: the four dots beside a selected shape; dragging one
+  starts Excalidraw's own arrow tool at that edge, so binding and routing are
+  the editor's
 
 ## Changes to Excalidraw itself
 

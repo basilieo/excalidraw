@@ -1,7 +1,8 @@
 // Sheets: frames treated as drawing sheets, the way a sheet set works in
 // architectural drawings. A frame's name is the sheet title; the rest of the
-// sheet's data (number, discipline, revision, issue date) lives on the frame
-// in `customData.sheet`, so it saves, undoes and exports with the board.
+// sheet's data (number, discipline, status, revision, issue date) lives on
+// the frame in `customData.sheet`, so it saves, undoes and exports with the
+// board.
 //
 // A title block is a small group of locked elements inside the frame that is
 // generated from that data. Nobody edits a title block directly: rename the
@@ -15,6 +16,9 @@ import {
 } from "@excalidraw/excalidraw";
 import { randomInteger } from "@excalidraw/common";
 
+import { paperPx } from "./paper";
+
+import type { BoardSettings, ColorBy } from "./settings";
 import type {
   ExcalidrawElement,
   ExcalidrawFrameElement,
@@ -25,6 +29,7 @@ export type Discipline = { code: string; name: string; color: string };
 
 // Codes are the sheet number prefix (S-101). Edit this list to change the
 // disciplines; a sheet whose code is no longer listed falls back to General.
+// The fab library reads the same list (catalog/backend/jobbook/sheets.py).
 export const DISCIPLINES: Discipline[] = [
   { code: "G", name: "General", color: "#868e96" },
   { code: "D", name: "Design", color: "#1971c2" },
@@ -37,9 +42,25 @@ export const DISCIPLINES: Discipline[] = [
 export const disciplineOf = (code: string) =>
   DISCIPLINES.find((d) => d.code === code) ?? DISCIPLINES[0];
 
+export type Status = { code: string; name: string; color: string };
+
+// Where a sheet is in its life. The board can be colored by these instead of
+// by discipline (BoardSettings.colorBy).
+export const STATUSES: Status[] = [
+  { code: "draft", name: "Draft", color: "#868e96" },
+  { code: "review", name: "In review", color: "#f08c00" },
+  { code: "issued", name: "Issued", color: "#2f9e44" },
+  { code: "hold", name: "On hold", color: "#9c36b5" },
+  { code: "superseded", name: "Superseded", color: "#e03131" },
+];
+
+export const statusOf = (code: string) =>
+  STATUSES.find((s) => s.code === code) ?? STATUSES[0];
+
 export type SheetData = {
   number: string;
   discipline: string;
+  status: string;
   revision: string;
   issued: string;
   titleBlock: boolean;
@@ -53,8 +74,8 @@ export type Sheet = {
 
 export const UNTITLED = "Untitled sheet";
 
-/** a new frame is a tabloid sheet, landscape, at 100 px to the inch */
-export const SHEET_SIZE = { width: 1700, height: 1100 };
+/** tabloid landscape at 100 px to the inch: what the title block is sized for */
+const REFERENCE_SHORT_SIDE = 1100;
 const SHEET_GAP = 200;
 
 const TB_KEY = "jobbookTitleBlock";
@@ -63,7 +84,7 @@ export const isSheetFrame = (
   el: ExcalidrawElement,
 ): el is ExcalidrawFrameElement => el.type === "frame" && !el.isDeleted;
 
-const isTitleBlockPart = (el: ExcalidrawElement) =>
+export const isTitleBlockPart = (el: ExcalidrawElement) =>
   !!(el.customData as any)?.[TB_KEY];
 
 const titleBlockInfo = (el: ExcalidrawElement) =>
@@ -74,6 +95,7 @@ const titleBlockInfo = (el: ExcalidrawElement) =>
 export const readSheet = (frame: ExcalidrawFrameElement): SheetData => ({
   number: "",
   discipline: "G",
+  status: "draft",
   revision: "0",
   issued: "",
   titleBlock: true,
@@ -86,6 +108,12 @@ export const getSheets = (elements: readonly ExcalidrawElement[]): Sheet[] =>
     title: frame.name || UNTITLED,
     data: readSheet(frame),
   }));
+
+/** the color a sheet shows, by the board's scheme */
+export const sheetColor = (data: SheetData, colorBy: ColorBy) =>
+  colorBy === "status"
+    ? statusOf(data.status).color
+    : disciplineOf(data.discipline).color;
 
 const disciplineIndex = (code: string) => {
   const i = DISCIPLINES.findIndex((d) => d.code === code);
@@ -120,7 +148,7 @@ export const nextNumber = (sheets: Sheet[], code: string) => {
 /** frames in reading order: rows top to bottom, then left to right */
 export const byPosition = (sheets: Sheet[]) => {
   const rowHeight =
-    Math.min(...sheets.map((s) => s.frame.height), SHEET_SIZE.height) / 2;
+    Math.min(...sheets.map((s) => s.frame.height), REFERENCE_SHORT_SIDE) / 2;
   return [...sheets].sort(
     (a, b) =>
       Math.round(a.frame.y / rowHeight) - Math.round(b.frame.y / rowHeight) ||
@@ -131,32 +159,41 @@ export const byPosition = (sheets: Sheet[]) => {
 // ---------------------------------------------------------------------------
 // writing sheet data
 
-const accentFor = (data: SheetData) => ({
-  sheetColor: disciplineOf(data.discipline).color,
+/** what the editor itself reads off a frame (getFrameSheetAccent in the fork) */
+const accentFor = (data: SheetData, colorBy: ColorBy) => ({
+  sheetColor: sheetColor(data, colorBy),
   sheetNumber: data.number,
 });
 
-/** a frame with new sheet data (and optionally a new title) */
+type FrameChange = {
+  patch?: Partial<SheetData>;
+  title?: string;
+  size?: { width: number; height: number };
+};
+
+/** a frame with new sheet data, title or size */
 const withSheet = (
   frame: ExcalidrawFrameElement,
-  patch: Partial<SheetData>,
-  title?: string,
+  change: FrameChange,
+  colorBy: ColorBy,
 ) => {
-  const data = { ...readSheet(frame), ...patch };
+  const data = { ...readSheet(frame), ...(change.patch ?? {}) };
   return newElementWith(frame, {
-    ...(title !== undefined ? { name: title } : {}),
+    ...(change.title !== undefined ? { name: change.title } : {}),
+    ...(change.size ?? {}),
     customData: {
       ...(frame.customData ?? {}),
       sheet: data,
-      ...accentFor(data),
+      ...accentFor(data, colorBy),
     },
   });
 };
 
-/** update many sheets in one undo step */
-export const updateSheets = (
+const applyChanges = (
   api: ExcalidrawImperativeAPI,
-  changes: Map<string, { patch: Partial<SheetData>; title?: string }>,
+  changes: Map<string, FrameChange>,
+  colorBy: ColorBy,
+  captureUpdate: typeof CaptureUpdateAction[keyof typeof CaptureUpdateAction],
 ) => {
   if (!changes.size) {
     return;
@@ -164,61 +201,85 @@ export const updateSheets = (
   const elements = api.getSceneElementsIncludingDeleted().map((el) => {
     const change = changes.get(el.id);
     return change && el.type === "frame"
-      ? withSheet(el as ExcalidrawFrameElement, change.patch, change.title)
+      ? withSheet(el as ExcalidrawFrameElement, change, colorBy)
       : el;
   });
-  api.updateScene({ elements, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
+  api.updateScene({ elements, captureUpdate });
 };
+
+/** update many sheets in one undo step */
+export const updateSheets = (
+  api: ExcalidrawImperativeAPI,
+  changes: Map<string, FrameChange>,
+  colorBy: ColorBy,
+) => applyChanges(api, changes, colorBy, CaptureUpdateAction.IMMEDIATELY);
 
 export const updateSheet = (
   api: ExcalidrawImperativeAPI,
   frameId: string,
-  patch: Partial<SheetData>,
-  title?: string,
-) => updateSheets(api, new Map([[frameId, { patch, title }]]));
+  change: FrameChange,
+  colorBy: ColorBy,
+) => updateSheets(api, new Map([[frameId, change]]), colorBy);
 
-/** give every frame without sheet data a number, so the board is a set */
-export const adoptFrames = (api: ExcalidrawImperativeAPI) => {
+/** recolor every sheet after the board's color scheme changes */
+export const recolorSheets = (
+  api: ExcalidrawImperativeAPI,
+  colorBy: ColorBy,
+) => {
+  const changes = new Map<string, FrameChange>(
+    getSheets(api.getSceneElements()).map((s) => [s.frame.id, {}]),
+  );
+  applyChanges(api, changes, colorBy, CaptureUpdateAction.EVENTUALLY);
+};
+
+/**
+ * Give every frame without sheet data a number, so the board is a set. A
+ * frame just drawn with the frame tool also snaps to the board's paper size
+ * (when the board asks for that), landscape or portrait as it was drawn.
+ */
+export const adoptFrames = (
+  api: ExcalidrawImperativeAPI,
+  settings: BoardSettings,
+  { snap }: { snap: boolean },
+) => {
   const sheets = getSheets(api.getSceneElements());
-  const changes = new Map<
-    string,
-    { patch: Partial<SheetData>; title?: string }
-  >();
+  const changes = new Map<string, FrameChange>();
   const assigned: Sheet[] = [...sheets];
   for (const sheet of byPosition(sheets)) {
     if (!(sheet.frame.customData as any)?.sheet) {
       const number = nextNumber(assigned, "G");
       assigned.push({ ...sheet, data: { ...sheet.data, number } });
-      changes.set(sheet.frame.id, {
+      const f = sheet.frame;
+      changes.set(f.id, {
         patch: { number, discipline: "G" },
         // the frame tool names a frame "Frame"; a sheet starts untitled
-        title: sheet.frame.name ?? UNTITLED,
+        title: f.name ?? UNTITLED,
+        size:
+          snap && settings.snapFrames
+            ? paperPx(
+                settings.paper,
+                f.width >= f.height ? "landscape" : "portrait",
+              )
+            : undefined,
       });
     }
   }
-  if (changes.size) {
-    const elements = api.getSceneElementsIncludingDeleted().map((el) => {
-      const change = changes.get(el.id);
-      return change
-        ? withSheet(el as ExcalidrawFrameElement, change.patch, change.title)
-        : el;
-    });
-    // part of loading, not an edit to undo
-    api.updateScene({ elements, captureUpdate: CaptureUpdateAction.NEVER });
-  }
+  // part of drawing the frame, not an edit of its own to undo
+  applyChanges(api, changes, settings.colorBy, CaptureUpdateAction.NEVER);
 };
 
-/** add a sheet to the right of the last one in its row */
+/** add a sheet to the right of everything, at the board's paper size */
 export const addSheet = (
   api: ExcalidrawImperativeAPI,
   discipline: string,
+  settings: BoardSettings,
 ): string => {
   const sheets = getSheets(api.getSceneElements());
+  const size = paperPx(settings.paper, settings.orientation);
   let x: number;
   let y: number;
   if (sheets.length) {
-    // to the right of everything, level with the rightmost sheet, so a new
-    // sheet never lands on top of another
+    // level with the rightmost sheet, so a new sheet never lands on another
     const rightmost = sheets.reduce((a, b) =>
       b.frame.x + b.frame.width > a.frame.x + a.frame.width ? b : a,
     ).frame;
@@ -226,12 +287,13 @@ export const addSheet = (
     y = rightmost.y;
   } else {
     const { scrollX, scrollY, width, height, zoom } = api.getAppState();
-    x = width / 2 / zoom.value - scrollX - SHEET_SIZE.width / 2;
-    y = height / 2 / zoom.value - scrollY - SHEET_SIZE.height / 2;
+    x = width / 2 / zoom.value - scrollX - size.width / 2;
+    y = height / 2 / zoom.value - scrollY - size.height / 2;
   }
   const data: SheetData = {
     number: nextNumber(sheets, discipline),
     discipline,
+    status: "draft",
     revision: "0",
     issued: "",
     titleBlock: true,
@@ -242,9 +304,9 @@ export const addSheet = (
       children: [],
       x,
       y,
-      ...SHEET_SIZE,
+      ...size,
       name: UNTITLED,
-      customData: { sheet: data, ...accentFor(data) },
+      customData: { sheet: data, ...accentFor(data, settings.colorBy) },
     } as any,
   ]);
   api.updateScene({
@@ -294,33 +356,47 @@ const truncate = (text: string, fontSize: number, width: number) => {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 };
 
-const signature = (frame: ExcalidrawFrameElement, project: string) =>
+const signature = (
+  frame: ExcalidrawFrameElement,
+  project: string,
+  colorBy: ColorBy,
+) =>
   JSON.stringify([
     frame.name,
     readSheet(frame),
     project,
+    colorBy,
     Math.round(frame.x),
     Math.round(frame.y),
     Math.round(frame.width),
     Math.round(frame.height),
   ]);
 
-/** the elements of one frame's title block, bottom right inside the frame */
+/**
+ * One frame's title block: a single strip, bottom right inside the frame.
+ * Title, then a line of project, discipline, status, revision and issue date,
+ * and the sheet number in its own cell. Sized to the sheet: on tabloid it is
+ * 3.6 x 0.56 in.
+ */
 const buildTitleBlock = (
   frame: ExcalidrawFrameElement,
   project: string,
+  colorBy: ColorBy,
   sig: string,
 ): ExcalidrawElement[] => {
   const data = readSheet(frame);
-  const discipline = disciplineOf(data.discipline);
-  const s = Math.min(Math.max(frame.width / SHEET_SIZE.width, 0.4), 4);
-  const W = Math.min(440 * s, frame.width - 32 * s);
-  const H = 112 * s;
-  const numberCell = 128 * s;
-  const x0 = frame.x + frame.width - W - 16 * s;
-  const y0 = frame.y + frame.height - H - 16 * s;
-  const left = x0 + 24 * s;
-  const textWidth = W - numberCell - 36 * s;
+  const color = sheetColor(data, colorBy);
+  const s = Math.min(
+    Math.max(Math.min(frame.width, frame.height) / REFERENCE_SHORT_SIDE, 0.25),
+    4,
+  );
+  const W = Math.min(360 * s, frame.width - 24 * s);
+  const H = 56 * s;
+  const numberCell = 96 * s;
+  const x0 = frame.x + frame.width - W - 12 * s;
+  const y0 = frame.y + frame.height - H - 12 * s;
+  const left = x0 + 16 * s;
+  const textWidth = W - numberCell - 24 * s;
 
   const box = (part: string, extra: Record<string, unknown>) => ({
     type: "rectangle",
@@ -351,11 +427,12 @@ const buildTitleBlock = (
     roughness: 0,
   });
 
-  const title = frame.name || UNTITLED;
   const meta = [
-    discipline.name,
+    project ? project.toUpperCase() : null,
+    disciplineOf(data.discipline).name,
+    statusOf(data.status).name,
     `Rev ${data.revision || "0"}`,
-    data.issued ? `Issued ${data.issued}` : null,
+    data.issued || null,
   ]
     .filter(Boolean)
     .join("  ·  ");
@@ -371,10 +448,10 @@ const buildTitleBlock = (
     box("band", {
       x: x0,
       y: y0,
-      width: 10 * s,
+      width: 6 * s,
       height: H,
-      backgroundColor: discipline.color,
-      strokeColor: discipline.color,
+      backgroundColor: color,
+      strokeColor: color,
     }),
     box("number-cell", {
       x: x0 + W - numberCell,
@@ -384,43 +461,27 @@ const buildTitleBlock = (
       backgroundColor: "transparent",
     }),
     text(
-      "project",
-      truncate((project || "No project").toUpperCase(), 11 * s, textWidth),
-      left,
-      y0 + 14 * s,
-      11 * s,
-      MUTED,
-    ),
-    text(
       "title",
-      truncate(title, 22 * s, textWidth),
+      truncate(frame.name || UNTITLED, 16 * s, textWidth),
       left,
-      y0 + 36 * s,
-      22 * s,
+      y0 + 9 * s,
+      16 * s,
     ),
     text(
       "meta",
-      truncate(meta, 11 * s, textWidth),
+      truncate(meta, 9 * s, textWidth),
       left,
-      y0 + H - 28 * s,
-      11 * s,
-      MUTED,
-    ),
-    text(
-      "sheet-label",
-      "SHEET",
-      x0 + W - numberCell + 14 * s,
-      y0 + 14 * s,
-      10 * s,
+      y0 + 34 * s,
+      9 * s,
       MUTED,
     ),
     text(
       "number",
-      truncate(data.number || "—", 30 * s, numberCell - 24 * s),
-      x0 + W - numberCell + 14 * s,
-      y0 + 40 * s,
-      30 * s,
-      discipline.color,
+      truncate(data.number || "—", 20 * s, numberCell - 20 * s),
+      x0 + W - numberCell + 10 * s,
+      y0 + 16 * s,
+      20 * s,
+      color,
     ),
   ];
 
@@ -444,6 +505,7 @@ const buildTitleBlock = (
 export const syncTitleBlocks = (
   api: ExcalidrawImperativeAPI,
   project: string,
+  colorBy: ColorBy,
 ): boolean => {
   const all = api.getSceneElementsIncludingDeleted();
   const byId = new Map(all.map((el) => [el.id, el]));
@@ -476,14 +538,14 @@ export const syncTitleBlocks = (
       existing.forEach(remove);
       continue;
     }
-    const sig = signature(frame, project);
+    const sig = signature(frame, project, colorBy);
     if (
       existing.length &&
       existing.every((el) => titleBlockInfo(el)?.sig === sig)
     ) {
       continue;
     }
-    const fresh = buildTitleBlock(frame, project, sig);
+    const fresh = buildTitleBlock(frame, project, colorBy, sig);
     const freshIds = new Set(fresh.map((el) => el.id));
     for (const el of fresh) {
       const old = byId.get(el.id);
@@ -498,6 +560,8 @@ export const syncTitleBlocks = (
         add.push(el);
       }
     }
+    // parts the new layout no longer has (the old "project" and "SHEET"
+    // labels) go too
     existing.filter((el) => !freshIds.has(el.id)).forEach(remove);
   }
 
@@ -511,5 +575,3 @@ export const syncTitleBlocks = (
   });
   return true;
 };
-
-export { isTitleBlockPart };

@@ -12,12 +12,17 @@ export type JobBookConfig = {
   csrfToken: string | null;
   /** read-only viewers see the board but cannot save */
   canEdit: boolean;
+  /** POST {name} copies the board into a new template (the fab library) */
+  templateUrl?: string | null;
+  isTemplate?: boolean;
 };
 
 export type StoredScene = {
   elements: readonly any[];
   appState: Record<string, unknown>;
   files: Record<string, unknown>;
+  /** the board's own settings (settings.ts) */
+  jobbook?: unknown;
 };
 
 export type LoadResult = { scene: StoredScene | null; version: number };

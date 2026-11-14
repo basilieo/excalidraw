@@ -2,11 +2,23 @@
 // discipline, the way a drawing set's cover sheet lists it. Click a sheet to
 // go to it; double-click to rename; drag within a discipline to reorder,
 // which renumbers that discipline. The selected sheet's data is edited at
-// the bottom.
+// the bottom. Above it: adding things (a sheet, a PDF, a table) and the
+// board's own settings.
 
 import { Sidebar, useExcalidrawAPI } from "@excalidraw/excalidraw";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  formatLength,
+  fromUnits,
+  matchPaper,
+  paperById,
+  paperLabel,
+  paperPx,
+  PAPERS,
+} from "./paper";
+import { importPdf } from "./pdf";
+import { useSettings } from "./settings";
 import {
   addSheet,
   byPosition,
@@ -17,12 +29,18 @@ import {
   isSheetFrame,
   nextNumber,
   numberFor,
+  sheetColor,
   sortSheets,
+  STATUSES,
+  statusOf,
   updateSheet,
   updateSheets,
   type Sheet,
 } from "./sheets";
+import { insertTable } from "./table";
 
+import type { Orientation } from "./paper";
+import type { ColorBy, ConnectorStyle } from "./settings";
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 export const SHEETS_SIDEBAR = "sheets";
@@ -38,7 +56,7 @@ const frameKey = (elements: readonly ExcalidrawElement[]) =>
       (f) =>
         `${f.id}|${f.name}|${JSON.stringify(f.customData ?? {})}|${Math.round(
           f.x,
-        )}|${Math.round(f.y)}`,
+        )}|${Math.round(f.y)}|${Math.round(f.width)}|${Math.round(f.height)}`,
     )
     .join("\n");
 
@@ -131,6 +149,24 @@ const CommitInput = ({
   );
 };
 
+/** every paper, grouped (US, Architectural, ISO, Poster) */
+const PaperOptions = ({ units }: { units: "in" | "mm" }) => {
+  const groups = [...new Set(PAPERS.map((p) => p.group))];
+  return (
+    <>
+      {groups.map((g) => (
+        <optgroup key={g} label={g}>
+          {PAPERS.filter((p) => p.group === g).map((p) => (
+            <option key={p.id} value={p.id}>
+              {paperLabel(p, units)}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </>
+  );
+};
+
 const SheetEditor = ({
   sheet,
   sheets,
@@ -141,15 +177,27 @@ const SheetEditor = ({
   canEdit: boolean;
 }) => {
   const api = useExcalidrawAPI();
+  const { settings } = useSettings();
   if (!api) {
     return null;
   }
+  const { colorBy, units } = settings;
   const id = sheet.frame.id;
   const discipline = disciplineOf(sheet.data.discipline);
+  const status = statusOf(sheet.data.status);
+  const { width, height } = sheet.frame;
+  const paper = matchPaper(width, height);
+  const orientation: Orientation = width >= height ? "landscape" : "portrait";
+  const resize = (w: number, h: number) =>
+    updateSheet(api, id, { size: { width: w, height: h } }, colorBy);
+
   return (
     <div className="jb-editor" data-ref="sheet-editor">
       <div className="jb-editor-head">
-        <span className="jb-chip" style={{ background: discipline.color }} />
+        <span
+          className="jb-chip"
+          style={{ background: sheetColor(sheet.data, colorBy) }}
+        />
         Sheet {sheet.data.number || "(unnumbered)"}
       </div>
       <fieldset disabled={!canEdit}>
@@ -158,7 +206,7 @@ const SheetEditor = ({
             data-ref="sheet-title"
             value={sheet.frame.name ?? ""}
             placeholder="Untitled sheet"
-            onCommit={(title) => updateSheet(api, id, {}, title)}
+            onCommit={(title) => updateSheet(api, id, { title }, colorBy)}
           />
         </Field>
         <div className="jb-row">
@@ -166,62 +214,159 @@ const SheetEditor = ({
             <CommitInput
               data-ref="sheet-number"
               value={sheet.data.number}
-              onCommit={(number) => updateSheet(api, id, { number })}
+              onCommit={(number) =>
+                updateSheet(api, id, { patch: { number } }, colorBy)
+              }
             />
           </Field>
           <Field label="Rev">
             <CommitInput
               data-ref="sheet-revision"
               value={sheet.data.revision}
-              onCommit={(revision) => updateSheet(api, id, { revision })}
+              onCommit={(revision) =>
+                updateSheet(api, id, { patch: { revision } }, colorBy)
+              }
             />
           </Field>
         </div>
-        <Field label="Discipline">
-          <select
-            data-ref="sheet-discipline"
-            value={discipline.code}
-            onChange={(e) => {
-              const code = e.target.value;
-              // a number that came from the old discipline (S-104) moves
-              // with it (to D-101); a number typed by hand stays
-              const old = sheet.data.number;
-              const automatic =
-                !old || new RegExp(`^${sheet.data.discipline}-\\d+$`).test(old);
-              updateSheet(api, id, {
-                discipline: code,
-                ...(automatic
-                  ? {
-                      number: nextNumber(
-                        sheets.filter((s) => s.frame.id !== id),
-                        code,
-                      ),
-                    }
-                  : {}),
-              });
-            }}
-          >
-            {DISCIPLINES.map((d) => (
-              <option key={d.code} value={d.code}>
-                {d.code} · {d.name}
-              </option>
-            ))}
-          </select>
-        </Field>
+        <div className="jb-row">
+          <Field label="Discipline">
+            <select
+              data-ref="sheet-discipline"
+              value={discipline.code}
+              onChange={(e) => {
+                const code = e.target.value;
+                // a number that came from the old discipline (S-104) moves
+                // with it (to D-101); a number typed by hand stays
+                const old = sheet.data.number;
+                const automatic =
+                  !old ||
+                  new RegExp(`^${sheet.data.discipline}-\\d+$`).test(old);
+                updateSheet(
+                  api,
+                  id,
+                  {
+                    patch: {
+                      discipline: code,
+                      ...(automatic
+                        ? {
+                            number: nextNumber(
+                              sheets.filter((s) => s.frame.id !== id),
+                              code,
+                            ),
+                          }
+                        : {}),
+                    },
+                  },
+                  colorBy,
+                );
+              }}
+            >
+              {DISCIPLINES.map((d) => (
+                <option key={d.code} value={d.code}>
+                  {d.code} · {d.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Status">
+            <select
+              data-ref="sheet-status"
+              value={status.code}
+              onChange={(e) =>
+                updateSheet(
+                  api,
+                  id,
+                  { patch: { status: e.target.value } },
+                  colorBy,
+                )
+              }
+            >
+              {STATUSES.map((s) => (
+                <option key={s.code} value={s.code}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
         <Field label="Issued">
           <input
             type="date"
             value={sheet.data.issued}
-            onChange={(e) => updateSheet(api, id, { issued: e.target.value })}
+            onChange={(e) =>
+              updateSheet(
+                api,
+                id,
+                { patch: { issued: e.target.value } },
+                colorBy,
+              )
+            }
           />
         </Field>
+        <Field label="Paper">
+          <select
+            data-ref="sheet-paper"
+            value={paper?.paper.id ?? "custom"}
+            onChange={(e) => {
+              if (e.target.value !== "custom") {
+                const size = paperPx(e.target.value, orientation);
+                resize(size.width, size.height);
+              }
+            }}
+          >
+            <option value="custom">Custom</option>
+            <PaperOptions units={units} />
+          </select>
+        </Field>
+        <div className="jb-row jb-size">
+          <Field label={`W (${units})`}>
+            <CommitInput
+              data-ref="sheet-width"
+              inputMode="decimal"
+              value={formatLength(width, units)}
+              onCommit={(v) => {
+                const n = parseFloat(v);
+                if (n > 0) {
+                  resize(fromUnits(n, units), height);
+                }
+              }}
+            />
+          </Field>
+          <Field label={`H (${units})`}>
+            <CommitInput
+              data-ref="sheet-height"
+              inputMode="decimal"
+              value={formatLength(height, units)}
+              onCommit={(v) => {
+                const n = parseFloat(v);
+                if (n > 0) {
+                  resize(width, fromUnits(n, units));
+                }
+              }}
+            />
+          </Field>
+          <button
+            type="button"
+            className="jb-ghost"
+            title="Turn the sheet: swap width and height"
+            onClick={() => resize(height, width)}
+          >
+            ⟲
+          </button>
+        </div>
         <label className="jb-check">
           <input
             type="checkbox"
             data-ref="sheet-titleblock"
             checked={sheet.data.titleBlock}
             onChange={(e) =>
-              updateSheet(api, id, { titleBlock: e.target.checked })
+              updateSheet(
+                api,
+                id,
+                { patch: { titleBlock: e.target.checked } },
+                colorBy,
+              )
             }
           />
           Title block on this sheet
@@ -245,9 +390,10 @@ const SheetRow = ({
   onDrop: () => void;
 }) => {
   const api = useExcalidrawAPI();
+  const { settings } = useSettings();
   const [renaming, setRenaming] = useState(false);
   const [over, setOver] = useState(false);
-  const discipline = disciplineOf(sheet.data.discipline);
+  const status = statusOf(sheet.data.status);
 
   return (
     <li
@@ -274,7 +420,10 @@ const SheetRow = ({
       onDoubleClick={() => canEdit && setRenaming(true)}
       title="Click to go to the sheet. Double-click to rename. Drag to reorder."
     >
-      <span className="jb-bar" style={{ background: discipline.color }} />
+      <span
+        className="jb-bar"
+        style={{ background: sheetColor(sheet.data, settings.colorBy) }}
+      />
       <span className="jb-num">{sheet.data.number || "—"}</span>
       {renaming ? (
         <CommitInput
@@ -283,12 +432,17 @@ const SheetRow = ({
           value={sheet.frame.name ?? ""}
           onClick={(e) => e.stopPropagation()}
           onCommit={(title) =>
-            api && updateSheet(api, sheet.frame.id, {}, title)
+            api && updateSheet(api, sheet.frame.id, { title }, settings.colorBy)
           }
           onBlurCapture={() => setRenaming(false)}
         />
       ) : (
         <span className="jb-title">{sheet.title}</span>
+      )}
+      {sheet.data.status !== "draft" && (
+        <span className="jb-tag" style={{ color: status.color }}>
+          {status.name}
+        </span>
       )}
       {sheet.data.revision && sheet.data.revision !== "0" && (
         <span className="jb-rev">R{sheet.data.revision}</span>
@@ -297,22 +451,238 @@ const SheetRow = ({
   );
 };
 
+/** adding things to the board: a sheet, a PDF's pages, a table */
+const Insert = ({ discipline }: { discipline: string }) => {
+  const api = useExcalidrawAPI();
+  const { settings } = useSettings();
+  const [newDiscipline, setNewDiscipline] = useState(discipline);
+  const [pdfAsSheets, setPdfAsSheets] = useState(true);
+  const [rows, setRows] = useState(5);
+  const [cols, setCols] = useState(4);
+  const [busy, setBusy] = useState(false);
+  const file = useRef<HTMLInputElement>(null);
+  if (!api) {
+    return null;
+  }
+  const size = paperPx(settings.paper, settings.orientation);
+
+  return (
+    <details className="jb-section" open data-ref="insert">
+      <summary>Add</summary>
+      <div className="jb-add">
+        <select
+          value={newDiscipline}
+          onChange={(e) => setNewDiscipline(e.target.value)}
+          aria-label="Discipline of the new sheet"
+        >
+          {DISCIPLINES.map((d) => (
+            <option key={d.code} value={d.code}>
+              {d.code} · {d.name}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          data-ref="add-sheet"
+          title={`A new ${paperById(settings.paper).name} sheet, ${
+            settings.orientation
+          }, ${formatLength(size.width, settings.units)} × ${formatLength(
+            size.height,
+            settings.units,
+          )} ${settings.units}`}
+          onClick={() => {
+            const id = addSheet(api, newDiscipline, settings);
+            window.setTimeout(() => goToSheet(api, id));
+          }}
+        >
+          + Sheet
+        </button>
+      </div>
+      <div className="jb-add">
+        <button
+          type="button"
+          data-ref="add-pdf"
+          disabled={busy}
+          onClick={() => file.current?.click()}
+        >
+          {busy ? "Reading PDF…" : "+ PDF"}
+        </button>
+        <label className="jb-check">
+          <input
+            type="checkbox"
+            checked={pdfAsSheets}
+            onChange={(e) => setPdfAsSheets(e.target.checked)}
+          />
+          each page a sheet
+        </label>
+        <input
+          ref={file}
+          type="file"
+          accept="application/pdf,.pdf"
+          hidden
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (!f) {
+              return;
+            }
+            setBusy(true);
+            try {
+              await importPdf(api, f, {
+                asSheets: pdfAsSheets,
+                discipline: newDiscipline,
+                settings,
+              });
+            } catch (error: any) {
+              api.setToast({
+                message: `Could not read ${f.name}: ${error?.message ?? error}`,
+                closable: true,
+                duration: Infinity,
+              });
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      </div>
+      <div className="jb-add">
+        <button
+          type="button"
+          data-ref="add-table"
+          onClick={() => insertTable(api, rows, cols)}
+        >
+          + Table
+        </button>
+        <input
+          type="number"
+          min={1}
+          max={60}
+          value={rows}
+          aria-label="Rows"
+          onChange={(e) => setRows(parseInt(e.target.value, 10) || 1)}
+        />
+        <span className="jb-times">rows ×</span>
+        <input
+          type="number"
+          min={1}
+          max={20}
+          value={cols}
+          aria-label="Columns"
+          onChange={(e) => setCols(parseInt(e.target.value, 10) || 1)}
+        />
+        <span className="jb-times">cols</span>
+      </div>
+      <p className="jb-hint">
+        A PDF can also be dropped on the board. Drag from a dot beside a
+        selected shape to connect it to another.
+      </p>
+    </details>
+  );
+};
+
+/** the board's own settings, saved with it */
+const BoardSettingsPanel = ({ canEdit }: { canEdit: boolean }) => {
+  const { settings, update } = useSettings();
+  return (
+    <details className="jb-section" data-ref="board-settings">
+      <summary>Board settings</summary>
+      <fieldset disabled={!canEdit}>
+        <div className="jb-row">
+          <Field label="Units">
+            <select
+              value={settings.units}
+              onChange={(e) => update({ units: e.target.value as "in" | "mm" })}
+            >
+              <option value="in">inches</option>
+              <option value="mm">millimetres</option>
+            </select>
+          </Field>
+          <Field label="Color sheets by">
+            <select
+              data-ref="color-by"
+              value={settings.colorBy}
+              onChange={(e) => update({ colorBy: e.target.value as ColorBy })}
+            >
+              <option value="discipline">discipline</option>
+              <option value="status">status</option>
+            </select>
+          </Field>
+        </div>
+        <Field label="Paper for new sheets">
+          <select
+            data-ref="board-paper"
+            value={settings.paper}
+            onChange={(e) => update({ paper: e.target.value })}
+          >
+            <PaperOptions units={settings.units} />
+          </select>
+        </Field>
+        <div className="jb-row">
+          <Field label="Orientation">
+            <select
+              value={settings.orientation}
+              onChange={(e) =>
+                update({ orientation: e.target.value as Orientation })
+              }
+            >
+              <option value="landscape">landscape</option>
+              <option value="portrait">portrait</option>
+            </select>
+          </Field>
+          <Field label="Connectors">
+            <select
+              data-ref="connector-style"
+              value={settings.connector}
+              onChange={(e) =>
+                update({ connector: e.target.value as ConnectorStyle })
+              }
+            >
+              <option value="round">curved</option>
+              <option value="elbow">elbow</option>
+              <option value="sharp">straight</option>
+            </select>
+          </Field>
+        </div>
+        <label className="jb-check">
+          <input
+            type="checkbox"
+            data-ref="snap-frames"
+            checked={settings.snapFrames}
+            onChange={(e) => update({ snapFrames: e.target.checked })}
+          />
+          Frame tool (F) snaps to this paper
+        </label>
+        <div className="jb-legend">
+          {(settings.colorBy === "status" ? STATUSES : DISCIPLINES).map((x) => (
+            <span key={x.name}>
+              <span className="jb-chip" style={{ background: x.color }} />
+              {x.name}
+            </span>
+          ))}
+        </div>
+      </fieldset>
+    </details>
+  );
+};
+
 export const SheetsPanel = ({
   boardName,
   listUrl,
   canEdit,
+  isTemplate,
   status,
 }: {
   boardName: string;
   listUrl: string | null;
   canEdit: boolean;
+  isTemplate: boolean;
   /** save status, as the top-right corner shows it (hidden behind a docked panel) */
   status: { key: string; label: string };
 }) => {
   const api = useExcalidrawAPI();
+  const { settings } = useSettings();
   const { sheets, selectedFrameId } = useSheets();
   const [query, setQuery] = useState("");
-  const [newDiscipline, setNewDiscipline] = useState("S");
   const dragging = useRef<string | null>(null);
 
   const groups = useMemo(() => {
@@ -346,6 +716,7 @@ export const SheetsPanel = ({
           { patch: { number: numberFor(code, i) } },
         ]),
       ),
+      settings.colorBy,
     );
   };
 
@@ -370,6 +741,7 @@ export const SheetsPanel = ({
             </a>
           )}
           <div className="jb-board" title={boardName}>
+            {isTemplate && <span className="jb-template">template</span>}
             {boardName}
           </div>
           <div
@@ -434,40 +806,13 @@ export const SheetsPanel = ({
           ))}
         </div>
 
-        {canEdit && (
-          <div className="jb-add">
-            <select
-              value={newDiscipline}
-              onChange={(e) => setNewDiscipline(e.target.value)}
-              aria-label="Discipline of the new sheet"
-            >
-              {DISCIPLINES.map((d) => (
-                <option key={d.code} value={d.code}>
-                  {d.code} · {d.name}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              data-ref="add-sheet"
-              onClick={() => {
-                if (api) {
-                  const id = addSheet(api, newDiscipline);
-                  requestAnimationFrame(() => goToSheet(api, id));
-                }
-              }}
-            >
-              + New sheet
-            </button>
-          </div>
-        )}
-
         {selected ? (
           <SheetEditor sheet={selected} sheets={sheets} canEdit={canEdit} />
         ) : (
-          sheets.length > 0 && (
-            <p className="jb-hint">Select a sheet to edit its title block.</p>
-          )
+          <>
+            {canEdit && <Insert discipline="S" />}
+            <BoardSettingsPanel canEdit={canEdit} />
+          </>
         )}
       </div>
     </Sidebar>

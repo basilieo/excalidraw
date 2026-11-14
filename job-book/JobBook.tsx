@@ -6,11 +6,22 @@ import {
   Sidebar,
   THEME,
   useExcalidrawAPI,
+  viewportCoordsToSceneCoords,
 } from "@excalidraw/excalidraw";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { Connectors } from "./Connectors";
+import { importPdf, isPdf } from "./pdf";
+import { DEFAULT_SETTINGS, readSettings, SettingsContext } from "./settings";
 import { SHEETS_SIDEBAR, SheetsPanel } from "./SheetsPanel";
-import { adoptFrames, syncTitleBlocks, viewportOffsets } from "./sheets";
+import {
+  adoptFrames,
+  recolorSheets,
+  syncTitleBlocks,
+  viewportOffsets,
+} from "./sheets";
+
+import type { BoardSettings } from "./settings";
 
 import type { BoardStorage, JobBookConfig, StoredScene } from "./storage";
 import type { ExcalidrawElement } from "@excalidraw/element/types";
@@ -67,6 +78,7 @@ const sceneKey = (
   elements: readonly ExcalidrawElement[],
   appState: AppState,
   files: BinaryFiles,
+  settings: BoardSettings,
 ) => {
   let sum = 0;
   for (const el of elements) {
@@ -74,10 +86,15 @@ const sceneKey = (
   }
   return `${elements.length}:${sum}:${
     Object.keys(files).length
-  }:${SAVED_APP_STATE.map((k) => String(appState[k])).join(",")}`;
+  }:${SAVED_APP_STATE.map((k) => String(appState[k])).join(
+    ",",
+  )}:${JSON.stringify(settings)}`;
 };
 
-const buildScene = (api: ExcalidrawImperativeAPI): StoredScene => {
+const buildScene = (
+  api: ExcalidrawImperativeAPI,
+  settings: BoardSettings,
+): StoredScene => {
   const elements = api.getSceneElements();
   const appState = api.getAppState();
   const allFiles = api.getFiles();
@@ -92,6 +109,7 @@ const buildScene = (api: ExcalidrawImperativeAPI): StoredScene => {
     elements,
     appState: Object.fromEntries(SAVED_APP_STATE.map((k) => [k, appState[k]])),
     files,
+    jobbook: settings,
   };
 };
 
@@ -125,6 +143,8 @@ const Editor = ({
   const currentKey = useRef<string | null>(null);
   const saveTimer = useRef<number | undefined>(undefined);
   const syncQueued = useRef(false);
+  const [settings, setSettings] = useState<BoardSettings>(DEFAULT_SETTINGS);
+  const settingsRef = useRef<BoardSettings>(DEFAULT_SETTINGS);
 
   const set = (s: Status) => {
     statusRef.current = s;
@@ -135,6 +155,9 @@ const Editor = ({
     () =>
       storage.load().then(({ scene, version: v }) => {
         version.current = v;
+        const loaded = readSettings(scene?.jobbook);
+        settingsRef.current = loaded;
+        setSettings(loaded);
         return {
           elements: scene?.elements ?? [],
           appState: {
@@ -161,7 +184,10 @@ const Editor = ({
     }
     const key = currentKey.current;
     set("saving");
-    const result = await storage.save(buildScene(api), version.current);
+    const result = await storage.save(
+      buildScene(api, settingsRef.current),
+      version.current,
+    );
     if (result.status === "saved") {
       version.current = result.version;
       savedKey.current = key;
@@ -213,9 +239,9 @@ const Editor = ({
           syncQueued.current = false;
           if (!api.isDestroyed) {
             if (config.canEdit) {
-              adoptFrames(api);
+              adoptFrames(api, settingsRef.current, { snap: true });
             }
-            syncTitleBlocks(api, config.project);
+            syncTitleBlocks(api, config.project, settingsRef.current.colorBy);
           }
         });
       }
@@ -223,7 +249,12 @@ const Editor = ({
       if (!config.canEdit) {
         return;
       }
-      currentKey.current = sceneKey(elements, appState, files);
+      currentKey.current = sceneKey(
+        elements,
+        appState,
+        files,
+        settingsRef.current,
+      );
       if (currentKey.current === savedKey.current) {
         return;
       }
@@ -241,9 +272,9 @@ const Editor = ({
   const onInitialize = useCallback(
     (editor: ExcalidrawImperativeAPI) => {
       if (config.canEdit) {
-        adoptFrames(editor);
+        adoptFrames(editor, settingsRef.current, { snap: false });
       }
-      syncTitleBlocks(editor, config.project);
+      syncTitleBlocks(editor, config.project, settingsRef.current.colorBy);
       // what loaded counts as saved, even after title blocks are brought up
       // to date. The panel and the zoom wait a moment: the editor is still
       // applying the loaded scene's state during this callback.
@@ -270,6 +301,7 @@ const Editor = ({
             editor.getSceneElementsIncludingDeleted(),
             editor.getAppState(),
             editor.getFiles(),
+            settingsRef.current,
           );
           currentKey.current = savedKey.current;
           set(config.canEdit ? "saved" : "readonly");
@@ -281,11 +313,142 @@ const Editor = ({
     [config.canEdit, config.project],
   );
 
+  /** change a board setting; it is saved with the board like any edit */
+  const updateSettings = useCallback(
+    (patch: Partial<BoardSettings>) => {
+      const next = { ...settingsRef.current, ...patch };
+      settingsRef.current = next;
+      setSettings(next);
+      if (!api || !config.canEdit) {
+        return;
+      }
+      if (patch.colorBy) {
+        // the frames carry their color, so a new scheme rewrites them; the
+        // change that makes then saves the setting with it
+        recolorSheets(api, next.colorBy);
+        return;
+      }
+      currentKey.current = sceneKey(
+        api.getSceneElementsIncludingDeleted(),
+        api.getAppState(),
+        api.getFiles(),
+        next,
+      );
+      if (currentKey.current !== savedKey.current) {
+        if (statusRef.current === "saved") {
+          set("unsaved");
+        }
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = window.setTimeout(save, SAVE_DELAY);
+      }
+    },
+    [api, config.canEdit, save],
+  );
+
+  /** copy the board, as saved, into a new template */
+  const saveAsTemplate = useCallback(async () => {
+    if (!api || !config.templateUrl) {
+      return;
+    }
+    const name = window.prompt("Name the template", `${config.name} template`);
+    if (!name) {
+      return;
+    }
+    // the template is made from what is saved, so save what isn't yet
+    window.clearTimeout(saveTimer.current);
+    if (currentKey.current !== savedKey.current) {
+      await save();
+    }
+    try {
+      const res = await fetch(config.templateUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": config.csrfToken ?? "",
+        },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? res.status);
+      }
+      api.setToast({
+        message: `Saved as template "${data.name}". New boards can start from it on the job book page.`,
+        closable: true,
+        duration: 6000,
+      });
+    } catch (error: any) {
+      api.setToast({
+        message: `Could not make the template: ${error?.message ?? error}`,
+        closable: true,
+        duration: Infinity,
+      });
+    }
+  }, [api, config, save]);
+
+  // a PDF dropped on the board comes in page by page where it was dropped,
+  // instead of the editor refusing it
+  useEffect(() => {
+    if (!api || !config.canEdit) {
+      return;
+    }
+    const hasPdf = (dt: DataTransfer | null) =>
+      !!dt &&
+      Array.from(dt.items ?? []).some(
+        (item) => item.kind === "file" && item.type === "application/pdf",
+      );
+    const onDragOver = (e: DragEvent) => {
+      if (hasPdf(e.dataTransfer)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    const onDrop = async (e: DragEvent) => {
+      const pdfs = Array.from(e.dataTransfer?.files ?? []).filter(isPdf);
+      if (!pdfs.length) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      const at = viewportCoordsToSceneCoords(
+        { clientX: e.clientX, clientY: e.clientY },
+        api.getAppState(),
+      );
+      for (const file of pdfs) {
+        try {
+          await importPdf(api, file, {
+            at: { x: at.x, y: at.y },
+            asSheets: true,
+            discipline: "R",
+            settings: settingsRef.current,
+          });
+        } catch (error: any) {
+          api.setToast({
+            message: `Could not read ${file.name}: ${error?.message ?? error}`,
+            closable: true,
+            duration: Infinity,
+          });
+        }
+        at.y += 200;
+      }
+    };
+    document.addEventListener("dragover", onDragOver, true);
+    document.addEventListener("drop", onDrop, true);
+    return () => {
+      document.removeEventListener("dragover", onDragOver, true);
+      document.removeEventListener("drop", onDrop, true);
+    };
+  }, [api, config.canEdit]);
+
   useEffect(() => {
     const onLeave = (event: BeforeUnloadEvent) => {
       const s = statusRef.current;
       if (api && (s === "unsaved" || s === "saving" || s === "error")) {
-        storage.saveOnExit(buildScene(api), version.current);
+        storage.saveOnExit(
+          buildScene(api, settingsRef.current),
+          version.current,
+        );
         event.preventDefault();
       }
     };
@@ -294,76 +457,85 @@ const Editor = ({
   }, [api, storage]);
 
   return (
-    <Excalidraw
-      initialData={initialData}
-      onChange={onChange}
-      onInitialize={onInitialize}
-      name={config.name}
-      theme={theme}
-      onThemeChange={(t) => {
-        if (t === "system") {
+    <SettingsContext.Provider value={{ settings, update: updateSettings }}>
+      <Excalidraw
+        initialData={initialData}
+        onChange={onChange}
+        onInitialize={onInitialize}
+        name={config.name}
+        theme={theme}
+        onThemeChange={(t) => {
+          if (t === "system") {
+            try {
+              localStorage.removeItem("theme");
+            } catch {}
+            setTheme(readTheme());
+            return;
+          }
+          setTheme(t);
           try {
-            localStorage.removeItem("theme");
+            localStorage.setItem("theme", t);
           } catch {}
-          setTheme(readTheme());
-          return;
-        }
-        setTheme(t);
-        try {
-          localStorage.setItem("theme", t);
-        } catch {}
-      }}
-      viewModeEnabled={!config.canEdit}
-      handleKeyboardGlobally
-      autoFocus
-      UIOptions={{
-        canvasActions: {
-          toggleTheme: true,
-          export: { saveFileToDisk: true },
-          loadScene: false,
-        },
-      }}
-      renderTopRightUI={() => (
-        <div className="jb-topright">
-          <span
-            className={`jb-status is-${status}`}
-            data-ref="save-status"
-            title={STATUS_LABEL[status]}
-          >
-            {STATUS_LABEL[status]}
-          </span>
-          <Sidebar.Trigger
-            name={SHEETS_SIDEBAR}
-            title="Sheet index"
-            className="jb-trigger"
-          >
-            Sheets
-          </Sidebar.Trigger>
-        </div>
-      )}
-    >
-      <MainMenu>
-        {config.listUrl && (
-          <MainMenu.ItemLink href={config.listUrl}>
-            All job books
-          </MainMenu.ItemLink>
+        }}
+        viewModeEnabled={!config.canEdit}
+        handleKeyboardGlobally
+        autoFocus
+        UIOptions={{
+          canvasActions: {
+            toggleTheme: true,
+            export: { saveFileToDisk: true },
+            loadScene: false,
+          },
+        }}
+        renderTopRightUI={() => (
+          <div className="jb-topright">
+            <span
+              className={`jb-status is-${status}`}
+              data-ref="save-status"
+              title={STATUS_LABEL[status]}
+            >
+              {STATUS_LABEL[status]}
+            </span>
+            <Sidebar.Trigger
+              name={SHEETS_SIDEBAR}
+              title="Sheet index"
+              className="jb-trigger"
+            >
+              Sheets
+            </Sidebar.Trigger>
+          </div>
         )}
-        <MainMenu.DefaultItems.SaveToActiveFile />
-        <MainMenu.DefaultItems.Export />
-        <MainMenu.DefaultItems.SaveAsImage />
-        <MainMenu.DefaultItems.SearchMenu />
-        <MainMenu.DefaultItems.Help />
-        <MainMenu.Separator />
-        <MainMenu.DefaultItems.ToggleTheme allowSystemTheme={false} />
-        <MainMenu.DefaultItems.ChangeCanvasBackground />
-      </MainMenu>
-      <SheetsPanel
-        boardName={config.name}
-        listUrl={config.listUrl}
-        canEdit={config.canEdit}
-        status={{ key: status, label: STATUS_LABEL[status] }}
-      />
-    </Excalidraw>
+      >
+        <MainMenu>
+          {config.listUrl && (
+            <MainMenu.ItemLink href={config.listUrl}>
+              All job books
+            </MainMenu.ItemLink>
+          )}
+          {config.canEdit && config.templateUrl && (
+            <MainMenu.Item onSelect={saveAsTemplate}>
+              Save as template
+            </MainMenu.Item>
+          )}
+          <MainMenu.DefaultItems.SaveToActiveFile />
+          <MainMenu.DefaultItems.Export />
+          <MainMenu.DefaultItems.SaveAsImage />
+          <MainMenu.DefaultItems.SearchMenu />
+          <MainMenu.DefaultItems.Help />
+          <MainMenu.Separator />
+          <MainMenu.DefaultItems.ToggleTheme allowSystemTheme={false} />
+          <MainMenu.DefaultItems.ChangeCanvasBackground />
+        </MainMenu>
+        <SheetsPanel
+          boardName={config.name}
+          listUrl={config.listUrl}
+          canEdit={config.canEdit}
+          isTemplate={!!config.isTemplate}
+          status={{ key: status, label: STATUS_LABEL[status] }}
+        />
+      </Excalidraw>
+      {config.canEdit && <Connectors />}
+    </SettingsContext.Provider>
   );
 };
 

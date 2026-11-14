@@ -71,7 +71,7 @@ body,
   padding: 0 0.75rem 0.75rem;
   min-height: 0;
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
   font-size: 0.85rem;
 }
 
@@ -89,7 +89,7 @@ body,
 }
 
 .jb-index {
-  flex: 1;
+  flex: 1 0 8rem;
   overflow-y: auto;
   min-height: 6rem;
   margin: 0 -0.25rem;
@@ -245,4 +245,118 @@ body,
   display: flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+/* add, board settings */
+
+.jb-section {
+  border-top: 1px solid var(--default-border-color, #ddd);
+  padding-top: 0.5rem;
+}
+.jb-section > summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-gray-60, #666);
+  margin-bottom: 0.5rem;
+}
+.jb-section fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.jb-add {
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+.jb-add input[type="number"] {
+  width: 3.4rem !important;
+  flex: none;
+}
+.jb-times {
+  color: var(--color-gray-60, #666);
+  font-size: 0.75rem;
+}
+.jb-add .jb-check {
+  font-size: 0.8rem;
+}
+.jb-add button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.jb-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.8rem;
+  font-size: 0.75rem;
+  color: var(--color-gray-60, #666);
+}
+.jb-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.jb-tag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.jb-size {
+  align-items: flex-end;
+}
+.jb-ghost {
+  flex: none;
+  font: inherit;
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--default-border-color, #ddd);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* connector dots beside the selected shape */
+
+.jb-connectors {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.jb-dot {
+  position: fixed;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--color-primary, #6965db);
+  background: var(--island-bg-color, #fff);
+  pointer-events: auto;
+  cursor: crosshair;
+  touch-action: none;
+  opacity: 0.85;
+}
+.jb-dot:hover {
+  background: var(--color-primary, #6965db);
+  opacity: 1;
+  transform: scale(1.25);
+}
+
+.jb-template {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-primary, #6965db);
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0 0.3rem;
+  margin-right: 0.4rem;
+  vertical-align: 0.15em;
 }
