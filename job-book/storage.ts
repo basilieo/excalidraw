@@ -16,6 +16,9 @@ export type JobBookConfig = {
   templateUrl?: string | null;
   /** the team's shared shape library: GET / PUT {libraryItems} */
   libraryUrl?: string | null;
+  /** POST a JPEG of the board here after saving; the index page shows it */
+  thumbnailUrl?: string | null;
+  hasThumbnail?: boolean;
   isTemplate?: boolean;
 };
 

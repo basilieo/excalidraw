@@ -23,6 +23,7 @@ import {
 import { Connectors } from "./Connectors";
 import { SheetTable, SheetTableViewContext } from "./SheetTable";
 import { SyncStatus } from "./SyncStatus";
+import { sendThumbnailSoon } from "./thumbnail";
 import { createTable, syncTables } from "./table/render";
 import { TableLayer } from "./table/TableLayer";
 import { importPdf, isPdf } from "./pdf";
@@ -241,6 +242,7 @@ const Editor = ({
     if (result.status === "saved") {
       version.current = result.version;
       savedKey.current = key;
+      sendThumbnailSoon(api, config);
       if (currentKey.current !== key) {
         set("unsaved");
         saveTimer.current = window.setTimeout(save, SAVE_DELAY);
@@ -264,7 +266,7 @@ const Editor = ({
         }
       }, RETRY_DELAY);
     }
-  }, [api, config.canEdit, storage]);
+  }, [api, config, storage]);
 
   const onChange = useCallback(
     (
@@ -380,6 +382,10 @@ const Editor = ({
           );
           currentKey.current = savedKey.current;
           set(config.canEdit ? "saved" : "readonly");
+          // a board with no picture on the job books page gets one now
+          if (config.canEdit && !config.hasThumbnail) {
+            sendThumbnailSoon(editor, config);
+          }
         },
         // after the panel above has opened
         50,
