@@ -35,6 +35,7 @@ import {
   enforceSheetSizes,
   recolorSheets,
   setColorOverrides,
+  setGroups,
   syncPageNumbers,
   syncTitleBlocks,
   viewportOffsets,
@@ -211,6 +212,7 @@ const Editor = ({
         const loaded = readSettings(scene?.jobbook);
         settingsRef.current = loaded;
         setColorOverrides(loaded.colors);
+        setGroups(loaded.groups);
         setSettings(loaded);
         return {
           elements: scene?.elements ?? [],
@@ -412,7 +414,10 @@ const Editor = ({
       if (patch.colors) {
         setColorOverrides(next.colors);
       }
-      if (patch.colorBy || patch.colors) {
+      if (patch.groups) {
+        setGroups(next.groups);
+      }
+      if (patch.colorBy || patch.colors || patch.groups) {
         // the frames carry their color, so a new scheme or color rewrites
         // them; the change that makes then saves the setting with it
         recolorSheets(api, next.colorBy);
@@ -583,7 +588,7 @@ const Editor = ({
             },
           }}
           // a mouse wheel notch zooms about 7%, the same at any zoom
-          mouseWheelZoomRate={0.0007}
+          mouseWheelZoomRate={0.001}
           renderToolbarExtras={() => (config.canEdit ? <AttachButton /> : null)}
           renderExtraToolsItems={(close) =>
             config.canEdit ? (

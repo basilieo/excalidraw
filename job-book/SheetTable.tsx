@@ -21,7 +21,7 @@ import { createPortal } from "react-dom";
 import { formatSize, matchPaper, paperPx, PAPERS } from "./paper";
 import { useSettings } from "./settings";
 import {
-  DISCIPLINES,
+  getGroups,
   disciplineOf,
   goToSheet,
   sheetColor,
@@ -100,14 +100,16 @@ const COLUMNS: Col[] = [
     label: "Phase",
     width: 140,
     kind: "select",
-    options: DISCIPLINES.map((d) => ({
-      value: d.code,
-      label: `${d.code} · ${d.name}`,
-    })),
+    get options() {
+      return getGroups().map((d) => ({
+        value: d.code,
+        label: `${d.code} · ${d.name}`,
+      }));
+    },
     show: (s) => disciplineOf(s.data.discipline).name,
     raw: (s) => s.data.discipline,
     parse: (v) => {
-      const d = pick(DISCIPLINES, v);
+      const d = pick(getGroups(), v);
       return d ? { patch: { discipline: d.code } } : null;
     },
   },

@@ -6,7 +6,8 @@
 // The canvas drawing (render.ts) and the click layer (TableLayer.tsx) both
 // read this, so what you click is exactly where it is drawn.
 
-import { isNumeric, styleKey, viewRows } from "./model";
+import { formatCell } from "./format";
+import { isChecked, isNumeric, styleKey, viewRows } from "./model";
 
 import type { Align, CellStyle, Column, Row, TableData } from "./model";
 
@@ -66,6 +67,9 @@ export type CellLayout = {
   lines: string[];
   align: Align;
   style: CellStyle;
+  /** a checkbox column's cell: drawn as a box, ticked or not */
+  checkbox?: boolean;
+  checked?: boolean;
 };
 
 export type TableLayout = {
@@ -100,20 +104,28 @@ export const layoutTable = (
     y: number,
     shown: string,
     style: CellStyle,
-  ): CellLayout => ({
-    rowId,
-    colId: col.id,
-    x: col.x,
-    y,
-    width: col.width,
-    height: 0,
-    shown,
-    lines: shown ? wrap(shown, col.width - PAD_X * 2) : [],
-    align:
-      style.align ??
-      (isNumeric(shown) || shown.startsWith("#") ? "right" : "left"),
-    style,
-  });
+  ): CellLayout => {
+    const isHead = rowId === HEADER_KEY;
+    const checkbox = !isHead && col.format === "checkbox";
+    const text = isHead || checkbox ? (checkbox ? "" : shown) : formatCell(col, shown);
+    return {
+      rowId,
+      colId: col.id,
+      x: col.x,
+      y,
+      width: col.width,
+      height: 0,
+      shown: text,
+      lines: text ? wrap(text, col.width - PAD_X * 2) : [],
+      align: checkbox
+        ? "center"
+        : style.align ??
+          (isNumeric(shown) || shown.startsWith("#") ? "right" : "left"),
+      style,
+      checkbox,
+      checked: checkbox ? isChecked(shown) : undefined,
+    };
+  };
 
   // header row: the column names
   const header = columns.map((c) =>

@@ -277,7 +277,7 @@ const renderBindingHighlightForBindableElement_simple = (
         -1,
         enclosingFrame.width + 1,
         enclosingFrame.height + 1,
-        FRAME_STYLE.radius / appState.zoom.value,
+        FRAME_STYLE.radius, // job book (fork): the same rounding on the board at every zoom
       );
     } else {
       context.rect(-1, -1, enclosingFrame.width + 1, enclosingFrame.height + 1);
@@ -305,7 +305,7 @@ const renderBindingHighlightForBindableElement_simple = (
           0,
           suggestedBinding.element.width,
           suggestedBinding.element.height,
-          FRAME_STYLE.radius / appState.zoom.value,
+          FRAME_STYLE.radius, // job book (fork): the same rounding on the board at every zoom
         );
         context.stroke();
         context.closePath();
@@ -552,7 +552,7 @@ const renderBindingHighlightForBindableElement_complex = (
         -1,
         enclosingFrame.width + 1,
         enclosingFrame.height + 1,
-        FRAME_STYLE.radius / appState.zoom.value,
+        FRAME_STYLE.radius, // job book (fork): the same rounding on the board at every zoom
       );
     } else {
       context.rect(-1, -1, enclosingFrame.width + 1, enclosingFrame.height + 1);
@@ -582,7 +582,7 @@ const renderBindingHighlightForBindableElement_complex = (
           0,
           element.width,
           element.height,
-          FRAME_STYLE.radius / appState.zoom.value,
+          FRAME_STYLE.radius, // job book (fork): the same rounding on the board at every zoom
         );
         context.stroke();
         context.closePath();
@@ -997,7 +997,7 @@ const renderFrameHighlight = (
     y1 + height / 2,
     frame.angle,
     false,
-    FRAME_STYLE.radius / appState.zoom.value,
+    FRAME_STYLE.radius, // job book (fork): the same rounding on the board at every zoom
   );
   context.restore();
 };

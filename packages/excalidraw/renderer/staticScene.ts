@@ -201,7 +201,7 @@ export const frameClip = (
       0,
       frame.width,
       frame.height,
-      FRAME_STYLE.radius / appState.zoom.value,
+      FRAME_STYLE.radius, // job book (fork): the same rounding on the board at every zoom
     );
   } else {
     context.rect(0, 0, frame.width, frame.height);
@@ -395,6 +395,45 @@ const _renderStaticScene = ({
       frame.height,
     );
     context.clip();
+  }
+
+  // job book (fork): sheets sit on the board like paper, with a soft shadow
+  // under everything. On screen only: exports and prints stay flat.
+  if (!isExporting && appState.frameRendering.enabled) {
+    const isDark = appState.theme === THEME.DARK;
+    const dpr = window.devicePixelRatio || 1;
+    context.save();
+    // in the dark a sheet is a shade lighter than the board, as paper reads
+    context.fillStyle = isDark
+      ? "#1c1c21"
+      : appState.viewBackgroundColor || "#ffffff";
+    context.shadowColor = isDark ? "rgba(0, 0, 0, 0.6)" : "rgba(0, 0, 0, 0.16)";
+    context.shadowBlur = 18 * dpr;
+    context.shadowOffsetY = 4 * dpr;
+    for (const element of visibleElements) {
+      if (element.type !== "frame") {
+        continue;
+      }
+      context.beginPath();
+      if (context.roundRect) {
+        context.roundRect(
+          element.x + appState.scrollX,
+          element.y + appState.scrollY,
+          element.width,
+          element.height,
+          FRAME_STYLE.radius,
+        );
+      } else {
+        context.rect(
+          element.x + appState.scrollX,
+          element.y + appState.scrollY,
+          element.width,
+          element.height,
+        );
+      }
+      context.fill();
+    }
+    context.restore();
   }
 
   const groupsToBeAddedToFrame = new Set<string>();

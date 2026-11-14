@@ -11,7 +11,7 @@ import {
 } from "@excalidraw/excalidraw";
 
 import { paperPx } from "../paper";
-import { DISCIPLINES, sheetColor, viewportOffsets } from "../sheets";
+import { DISCIPLINES, getGroups, sheetColor, viewportOffsets } from "../sheets";
 import { tableFrom } from "../table/model";
 import { syncTables, tableAnchor } from "../table/render";
 
@@ -458,7 +458,7 @@ export const buildNpJobBook = (
     r.sheets.map((s) => [
       s.n,
       s.title,
-      DISCIPLINES.find((d) => d.code === r.phase)!.name,
+      (getGroups().find((d) => d.code === r.phase) ?? DISCIPLINES.find((d) => d.code === r.phase)!).name,
       "",
     ]),
   );

@@ -24,6 +24,7 @@ import {
   addSheet,
   DISCIPLINES,
   disciplineOf,
+  getGroups,
   getSheets,
   goToSheet,
   isSheetFrame,
@@ -174,7 +175,8 @@ const SheetEditor = ({
           className="jb-chip"
           style={{ background: sheetColor(sheet.data, colorBy) }}
         />
-        Sheet {sheet.data.number || "(unnumbered)"}
+        {sheet.data.code || "Sheet"}
+        <span className="jb-count">page {sheet.data.number || "—"}</span>
       </div>
       <fieldset disabled={!canEdit}>
         <Field label="Title">
@@ -225,7 +227,7 @@ const SheetEditor = ({
                 )
               }
             >
-              {DISCIPLINES.map((d) => (
+              {getGroups().map((d) => (
                 <option key={d.code} value={d.code}>
                   {d.code} · {d.name}
                 </option>
@@ -404,7 +406,9 @@ const SheetRow = ({
         className="jb-bar"
         style={{ background: sheetColor(sheet.data, settings.colorBy) }}
       />
-      <span className="jb-num">{sheet.data.number || "—"}</span>
+      <span className="jb-num" title={`Page ${sheet.data.number || "—"}`}>
+        {sheet.data.code || sheet.data.number || "—"}
+      </span>
       {renaming ? (
         <CommitInput
           autoFocus
@@ -431,49 +435,277 @@ const SheetRow = ({
   );
 };
 
-/** adding things to the board: a sheet, a PDF's pages, a table */
-const Insert = ({ discipline }: { discipline: string }) => {
+const SheetPlusIcon = (
+  <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M11.5 2.5H5a1.5 1.5 0 0 0-1.5 1.5v12A1.5 1.5 0 0 0 5 17.5h4M11.5 2.5l4 4M11.5 2.5v4h4M15.5 6.5V10M15 13v5M12.5 15.5h5" />
+  </svg>
+);
+const GroupPlusIcon = (
+  <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2.5 5.5v9A1.5 1.5 0 0 0 4 16h6M2.5 5.5A1.5 1.5 0 0 1 4 4h3.5l1.5 2h7a1.5 1.5 0 0 1 1.5 1.5V10M15 12.5v5M12.5 15h5" />
+  </svg>
+);
+
+/** a group code: capitals and digits, short, like a drawing set's */
+const cleanCode = (v: string) =>
+  v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
+
+/** the board's groups, to change and save with it */
+const useGroups = () => {
+  const { settings, update } = useSettings();
+  const api = useExcalidrawAPI();
+  const list = getGroups().map(({ code, name, color }) => ({ code, name, color }));
+  const save = (next: typeof list) => update({ groups: next });
+  return {
+    list,
+    rename: (code: string, name: string) =>
+      name.trim() &&
+      save(list.map((g) => (g.code === code ? { ...g, name: name.trim() } : g))),
+    recode: (code: string, raw: string) => {
+      const next = cleanCode(raw);
+      if (!next || next === code || list.some((g) => g.code === next)) {
+        return false;
+      }
+      // the sheets in the group, and its color, move to the new code
+      if (api) {
+        updateSheets(
+          api,
+          new Map(
+            getSheets(api.getSceneElements())
+              .filter((s) => disciplineOf(s.data.discipline).code === code)
+              .map((s) => [s.frame.id, { patch: { discipline: next } }]),
+          ),
+          settings.colorBy,
+        );
+      }
+      const colors = { ...settings.colors };
+      if (colors[code]) {
+        colors[next] = colors[code];
+        delete colors[code];
+      }
+      update({
+        groups: list.map((g) => (g.code === code ? { ...g, code: next } : g)),
+        colors,
+      });
+      return true;
+    },
+    add: (name: string, raw: string) => {
+      const code = cleanCode(raw);
+      if (!name.trim() || !code || list.some((g) => g.code === code)) {
+        return false;
+      }
+      const palette = ["#be4bdb", "#20c997", "#fab005", "#7950f2", "#e64980"];
+      save([
+        ...list,
+        { code, name: name.trim(), color: palette[list.length % palette.length] },
+      ]);
+      return true;
+    },
+    remove: (code: string) => save(list.filter((g) => g.code !== code)),
+  };
+};
+
+/** a short code from a name: "Site Visits" → "SV" */
+const suggestCode = (name: string, taken: string[]) => {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  let code = cleanCode(
+    words.length > 1 ? words.map((w) => w[0]).join("") : words[0]?.slice(0, 3) ?? "",
+  );
+  let i = 2;
+  const base = code;
+  while (code && taken.includes(code)) {
+    code = `${base.slice(0, 3)}${i++}`;
+  }
+  return code;
+};
+
+/** the small menus under the panel's + Sheet and + Group buttons */
+const AddMenus = () => {
   const api = useExcalidrawAPI();
   const { settings } = useSettings();
-  const [newDiscipline, setNewDiscipline] = useState(discipline);
+  const groups = useGroups();
+  const [open, setOpen] = useState<"sheet" | "group" | null>(null);
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [codeTouched, setCodeTouched] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const away = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) {
+        setOpen(null);
+      }
+    };
+    document.addEventListener("pointerdown", away, true);
+    return () => document.removeEventListener("pointerdown", away, true);
+  }, [open]);
   if (!api) {
     return null;
   }
   const size = paperPx(settings.paper, settings.orientation);
+  const addTo = (discipline: string) => {
+    setOpen(null);
+    const id = addSheet(api, discipline, settings);
+    window.setTimeout(() => goToSheet(api, id));
+  };
+  const addGroup = () => {
+    if (groups.add(name, code)) {
+      setOpen(null);
+      setName("");
+      setCode("");
+      setCodeTouched(false);
+    }
+  };
 
   return (
-    <details className="jb-section" open data-ref="insert">
-      <summary>Add</summary>
-      <div className="jb-add">
-        <select
-          value={newDiscipline}
-          onChange={(e) => setNewDiscipline(e.target.value)}
-          aria-label="Phase of the new sheet"
-        >
-          {DISCIPLINES.map((d) => (
-            <option key={d.code} value={d.code}>
-              {d.code} · {d.name}
-            </option>
+    <div className="jb-addmenus" ref={ref}>
+      <button
+        type="button"
+        className={`jb-icon-btn${open === "sheet" ? " is-on" : ""}`}
+        data-ref="add-sheet"
+        title={`New sheet: ${paperById(settings.paper).name}, ${settings.orientation}, ${formatLength(
+          size.width,
+          settings.units,
+        )} × ${formatLength(size.height, settings.units)} ${settings.units}`}
+        onClick={() => setOpen(open === "sheet" ? null : "sheet")}
+      >
+        {SheetPlusIcon}
+      </button>
+      <button
+        type="button"
+        className={`jb-icon-btn${open === "group" ? " is-on" : ""}`}
+        data-ref="add-group"
+        title="New group"
+        onClick={() => setOpen(open === "group" ? null : "group")}
+      >
+        {GroupPlusIcon}
+      </button>
+      {open === "sheet" && (
+        <div className="jb-pop" role="menu" data-ref="add-sheet-menu">
+          {groups.list.map((g) => (
+            <button
+              type="button"
+              role="menuitem"
+              key={g.code}
+              onClick={() => addTo(g.code)}
+            >
+              <span className="jb-chip" style={{ background: g.color }} />
+              <span className="jb-pop-code">{g.code}</span>
+              {g.name}
+            </button>
           ))}
-        </select>
-        <button
-          type="button"
-          data-ref="add-sheet"
-          title={`A new ${paperById(settings.paper).name} sheet, ${
-            settings.orientation
-          }, ${formatLength(size.width, settings.units)} × ${formatLength(
-            size.height,
-            settings.units,
-          )} ${settings.units}`}
-          onClick={() => {
-            const id = addSheet(api, newDiscipline, settings);
-            window.setTimeout(() => goToSheet(api, id));
+        </div>
+      )}
+      {open === "group" && (
+        <form
+          className="jb-pop jb-pop-form"
+          data-ref="add-group-menu"
+          onSubmit={(e) => {
+            e.preventDefault();
+            addGroup();
           }}
         >
-          + Sheet
-        </button>
-      </div>
-    </details>
+          <input
+            autoFocus
+            placeholder="Name"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (!codeTouched) {
+                setCode(suggestCode(e.target.value, groups.list.map((g) => g.code)));
+              }
+            }}
+          />
+          <input
+            className="jb-pop-codein"
+            placeholder="Code"
+            value={code}
+            title="The group's code starts its sheet codes, as in OV-101"
+            onChange={(e) => {
+              setCodeTouched(true);
+              setCode(cleanCode(e.target.value));
+            }}
+          />
+          <button
+            type="submit"
+            disabled={
+              !name.trim() || !code || groups.list.some((g) => g.code === code)
+            }
+            title={
+              groups.list.some((g) => g.code === code)
+                ? `${code} is taken`
+                : "Add the group"
+            }
+          >
+            Add
+          </button>
+        </form>
+      )}
+    </div>
+  );
+};
+
+/** a group's name or code, edited in place on click */
+const InlineEdit = ({
+  value,
+  onCommit,
+  className,
+  title,
+  canEdit,
+  clean = (v: string) => v,
+}: {
+  value: string;
+  onCommit: (v: string) => unknown;
+  className: string;
+  title: string;
+  canEdit: boolean;
+  clean?: (v: string) => string;
+}) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  if (!canEdit) {
+    return <span className={className}>{value}</span>;
+  }
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        className={`${className} jb-inline`}
+        title={title}
+        onClick={() => {
+          setDraft(value);
+          setEditing(true);
+        }}
+      >
+        {value}
+      </button>
+    );
+  }
+  const commit = () => {
+    setEditing(false);
+    if (draft !== value) {
+      onCommit(draft);
+    }
+  };
+  return (
+    <input
+      autoFocus
+      className={`${className} jb-inline-input`}
+      value={draft}
+      size={Math.max(2, draft.length + 1)}
+      onChange={(e) => setDraft(clean(e.target.value))}
+      onFocus={(e) => e.target.select()}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          commit();
+        } else if (e.key === "Escape") {
+          setEditing(false);
+        }
+      }}
+    />
   );
 };
 
@@ -554,15 +786,24 @@ export const SheetsPanel = ({
       (s) =>
         !q ||
         s.title.toLowerCase().includes(q) ||
-        s.data.number.toLowerCase().includes(q),
+        s.data.number.toLowerCase().includes(q) ||
+        (s.data.code ?? "").toLowerCase().includes(q),
     );
-    return DISCIPLINES.map((d) => ({
-      discipline: d,
-      sheets: shown.filter(
-        (s) => disciplineOf(s.data.discipline).code === d.code,
-      ),
-    })).filter((g) => g.sheets.length);
-  }, [sheets, query]);
+    return getGroups()
+      .map((d) => ({
+        discipline: d,
+        sheets: shown.filter(
+          (s) => disciplineOf(s.data.discipline).code === d.code,
+        ),
+      }))
+      // a group just added shows while still empty, unless searching
+      .filter(
+        (g) =>
+          g.sheets.length ||
+          (!q && !DISCIPLINES.some((d) => d.code === g.discipline.code)),
+      );
+  }, [sheets, query, settings.groups, settings.colors]);
+  const groupEdit = useGroups();
 
   const selected = sheets.find((s) => s.frame.id === selectedFrameId) ?? null;
 
@@ -626,6 +867,7 @@ export const SheetsPanel = ({
       </Sidebar.Header>
 
       <div className="jb-panel">
+        <div className="jb-searchrow">
         <input
           className="jb-search"
           type="search"
@@ -635,6 +877,8 @@ export const SheetsPanel = ({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        {canEdit && <AddMenus />}
+        </div>
 
         <div className="jb-index" data-ref="sheet-index">
           {!sheets.length && <p className="jb-empty">No sheets yet.</p>}
@@ -647,8 +891,32 @@ export const SheetsPanel = ({
                   color={disciplineOf(discipline.code).color}
                   canEdit={canEdit}
                 />
-                {discipline.name}
+                <InlineEdit
+                  className="jb-group-name"
+                  value={discipline.name}
+                  title="Rename the group"
+                  canEdit={canEdit}
+                  onCommit={(v) => groupEdit.rename(discipline.code, v)}
+                />
+                <InlineEdit
+                  className="jb-group-code"
+                  value={discipline.code}
+                  title="Change the group's code"
+                  canEdit={canEdit}
+                  clean={cleanCode}
+                  onCommit={(v) => groupEdit.recode(discipline.code, v)}
+                />
                 <span className="jb-count">{group.length}</span>
+                {canEdit && !group.length && (
+                  <button
+                    type="button"
+                    className="jb-group-x"
+                    title="Remove this empty group"
+                    onClick={() => groupEdit.remove(discipline.code)}
+                  >
+                    ×
+                  </button>
+                )}
               </h3>
               <ol>
                 {group.map((sheet) => (
@@ -670,7 +938,6 @@ export const SheetsPanel = ({
           <SheetEditor sheet={selected} sheets={sheets} canEdit={canEdit} />
         ) : (
           <>
-            {canEdit && <Insert discipline="OV" />}
             <BoardSettingsPanel canEdit={canEdit} />
           </>
         )}

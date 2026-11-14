@@ -55,8 +55,17 @@ export const setColorOverrides = (colors?: Record<string, string>) => {
 const withColor = <T extends { code: string; color: string }>(x: T): T =>
   colorOverrides[x.code] ? { ...x, color: colorOverrides[x.code] } : x;
 
+// The board's own groups, once it has renamed, recoded or added any
+// (BoardSettings.groups); these defaults otherwise.
+let groupList: Discipline[] = DISCIPLINES;
+export const setGroups = (list?: Discipline[]) => {
+  groupList = list?.length ? list : DISCIPLINES;
+};
+/** the board's sheet groups, in order, with its colors */
+export const getGroups = () => groupList.map(withColor);
+
 export const disciplineOf = (code: string) =>
-  withColor(DISCIPLINES.find((d) => d.code === code) ?? DISCIPLINES[0]);
+  withColor(groupList.find((d) => d.code === code) ?? groupList[0]);
 
 export type Status = { code: string; name: string; color: string };
 
@@ -76,6 +85,9 @@ export const statusOf = (code: string) =>
 export type SheetData = {
   /** the page number: set for you, from the sheet's place in the set */
   number: string;
+  /** the sheet code, its group's code and its place in the group (OV-101):
+   * set for you too */
+  code?: string;
   /** place within its phase, once sheets have been dragged into an order */
   order?: number;
   discipline: string;
@@ -100,6 +112,9 @@ const REFERENCE_SHORT_SIDE = 1100;
 const SHEET_GAP = 200;
 
 const TB_KEY = "jobbookTitleBlock";
+/** in every title block part's id: a new layout gets new ids, so its parts
+ * are laid in order over each other rather than taking the old ones' places */
+const TB_LAYOUT = "tb3";
 
 export const isSheetFrame = (
   el: ExcalidrawElement,
@@ -137,7 +152,7 @@ export const sheetColor = (data: SheetData, colorBy: ColorBy) =>
     : disciplineOf(data.discipline).color;
 
 const disciplineIndex = (code: string) => {
-  const i = DISCIPLINES.findIndex((d) => d.code === code);
+  const i = groupList.findIndex((d) => d.code === code);
   return i === -1 ? 0 : i;
 };
 
@@ -173,7 +188,7 @@ export function byPosition(sheets: Sheet[]) {
 /** what the editor itself reads off a frame (getFrameSheetAccent in the fork) */
 const accentFor = (data: SheetData, colorBy: ColorBy) => ({
   sheetColor: sheetColor(data, colorBy),
-  sheetNumber: data.number,
+  sheetNumber: data.code || data.number,
 });
 
 type FrameChange = {
@@ -233,18 +248,25 @@ export const updateSheet = (
 ) => updateSheets(api, new Map([[frameId, change]]), colorBy);
 
 /**
- * Every sheet's number is its page in the set, 1, 2, 3 ..., kept in step as
- * sheets are added, moved, reordered or change phase. Never its own undo.
+ * Every sheet's number is its page in the set, 1, 2, 3 ..., and its code is
+ * its group's code and place in the group, OV-101, OV-102 ..., the way a
+ * drawing set numbers sheets. Both are kept in step as sheets are added,
+ * moved, reordered or change group. Never its own undo.
  */
 export const syncPageNumbers = (
   api: ExcalidrawImperativeAPI,
   colorBy: ColorBy,
 ): boolean => {
   const changes = new Map<string, FrameChange>();
+  const inGroup = new Map<string, number>();
   sortSheets(getSheets(api.getSceneElements())).forEach((s, i) => {
     const page = String(i + 1);
-    if (s.data.number !== page) {
-      changes.set(s.frame.id, { patch: { number: page } });
+    const group = disciplineOf(s.data.discipline).code;
+    const n = inGroup.get(group) ?? 0;
+    inGroup.set(group, n + 1);
+    const code = `${group}-${101 + n}`;
+    if (s.data.number !== page || s.data.code !== code) {
+      changes.set(s.frame.id, { patch: { number: page, code } });
     }
   });
   applyChanges(api, changes, colorBy, CaptureUpdateAction.NEVER);
@@ -398,9 +420,11 @@ const signature = (
   colorBy: ColorBy,
 ) =>
   JSON.stringify([
+    "tb3",
     frame.name,
     readSheet(frame),
     sheetColor(readSheet(frame), colorBy),
+    disciplineOf(readSheet(frame).discipline).name,
     project,
     colorBy,
     Math.round(frame.x),
@@ -409,11 +433,24 @@ const signature = (
     Math.round(frame.height),
   ]);
 
+/** dark text on a light color, white on a dark one */
+const inkOn = (hex: string) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) {
+    return INK;
+  }
+  const n = parseInt(m[1], 16);
+  const lum =
+    (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) /
+    255;
+  return lum > 0.6 ? INK : "#ffffff";
+};
+
 /**
- * One frame's title block: a single strip, bottom right inside the frame.
- * Title, then a line of project, discipline, status, revision and issue date,
- * and the sheet number in its own cell. Sized to the sheet: on tabloid it is
- * 3.6 x 0.56 in.
+ * One frame's title block, bottom right inside the frame, with no box
+ * around it: the title, and under it a line of project, group, status,
+ * revision and issue date, set against a pill in the group's color that
+ * holds the page number and, under it, the sheet code. Sized to the sheet.
  */
 const buildTitleBlock = (
   frame: ExcalidrawFrameElement,
@@ -423,43 +460,33 @@ const buildTitleBlock = (
 ): ExcalidrawElement[] => {
   const data = readSheet(frame);
   const color = sheetColor(data, colorBy);
+  const ink = inkOn(color);
   const s = Math.min(
     Math.max(Math.min(frame.width, frame.height) / REFERENCE_SHORT_SIDE, 0.25),
     4,
   );
-  const W = Math.min(360 * s, frame.width - 24 * s);
-  const H = 56 * s;
-  const numberCell = 96 * s;
-  const x0 = frame.x + frame.width - W - 12 * s;
-  const y0 = frame.y + frame.height - H - 12 * s;
-  const left = x0 + 16 * s;
-  const textWidth = W - numberCell - 24 * s;
+  const pill = { w: 64 * s, h: 46 * s, x: 0, y: 0 };
+  pill.x = frame.x + frame.width - 16 * s - pill.w;
+  pill.y = frame.y + frame.height - 16 * s - pill.h;
+  const right = pill.x - 12 * s;
+  const textWidth = Math.min(320 * s, frame.width - pill.w - 60 * s);
 
-  const box = (part: string, extra: Record<string, unknown>) => ({
-    type: "rectangle",
-    id: `${frame.id}:tb:${part}`,
-    roughness: 0,
-    strokeWidth: 1,
-    strokeColor: INK,
-    roundness: null,
-    fillStyle: "solid",
-    ...extra,
-  });
   const text = (
     part: string,
     value: string,
-    x: number,
     y: number,
     fontSize: number,
     strokeColor = INK,
+    textAlign = "right",
   ) => ({
     type: "text",
-    id: `${frame.id}:tb:${part}`,
-    x,
+    id: `${frame.id}:${TB_LAYOUT}:${part}`,
+    x: right,
     y,
     text: value,
     fontSize,
     fontFamily: FONT_FAMILY.Helvetica,
+    textAlign,
     strokeColor,
     roughness: 0,
   });
@@ -475,63 +502,49 @@ const buildTitleBlock = (
     .join("  ·  ");
 
   const skeletons = [
-    box("frame", {
-      x: x0,
-      y: y0,
-      width: W,
-      height: H,
-      backgroundColor: "#ffffff",
-    }),
-    box("band", {
-      x: x0,
-      y: y0,
-      width: 6 * s,
-      height: H,
-      backgroundColor: color,
+    {
+      type: "rectangle",
+      id: `${frame.id}:${TB_LAYOUT}:pill`,
+      x: pill.x,
+      y: pill.y,
+      width: pill.w,
+      height: pill.h,
+      roughness: 0,
+      strokeWidth: 1,
       strokeColor: color,
-    }),
-    box("number-cell", {
-      x: x0 + W - numberCell,
-      y: y0,
-      width: numberCell,
-      height: H,
-      backgroundColor: "transparent",
-    }),
+      backgroundColor: color,
+      fillStyle: "solid",
+      roundness: { type: 3 },
+    },
     text(
       "title",
       truncate(frame.name || UNTITLED, 16 * s, textWidth),
-      left,
-      y0 + 9 * s,
+      pill.y + 4 * s,
       16 * s,
     ),
-    text(
-      "meta",
-      truncate(meta, 9 * s, textWidth),
-      left,
-      y0 + 34 * s,
-      9 * s,
-      MUTED,
-    ),
-    text(
-      "number",
-      truncate(data.number || "—", 20 * s, numberCell - 20 * s),
-      x0 + W - numberCell + 10 * s,
-      y0 + 16 * s,
-      20 * s,
-      color,
-    ),
-  ];
+    text("meta", truncate(meta, 9 * s, textWidth), pill.y + 28 * s, 9 * s, MUTED),
+    text("number", data.number || "—", pill.y + 6 * s, 20 * s, ink, "center"),
+    text("code", data.code || "", pill.y + 29 * s, 9.5 * s, ink, "center"),
+  ].filter((sk) => sk.type !== "text" || (sk as any).text);
 
   return convertToExcalidrawElements(skeletons as any, {
     regenerateIds: false,
-  }).map((el) => ({
-    ...el,
-    frameId: frame.id,
-    locked: true,
-    customData: {
-      [TB_KEY]: { frameId: frame.id, part: el.id.split(":tb:")[1], sig },
-    },
-  })) as ExcalidrawElement[];
+  }).map((el) => {
+    const part = el.id.split(`:${TB_LAYOUT}:`)[1];
+    const x =
+      part === "number" || part === "code"
+        ? pill.x + (pill.w - el.width) / 2
+        : part === "title" || part === "meta"
+        ? right - el.width
+        : el.x;
+    return {
+      ...el,
+      x,
+      frameId: frame.id,
+      locked: true,
+      customData: { [TB_KEY]: { frameId: frame.id, part, sig } },
+    };
+  }) as ExcalidrawElement[];
 };
 
 /**
@@ -578,7 +591,11 @@ export const syncTitleBlocks = (
     const sig = signature(frame, project, colorBy);
     if (
       existing.length &&
-      existing.every((el) => titleBlockInfo(el)?.sig === sig)
+      existing.every(
+        (el) =>
+          titleBlockInfo(el)?.sig === sig &&
+          el.id.includes(`:${TB_LAYOUT}:`),
+      )
     ) {
       continue;
     }

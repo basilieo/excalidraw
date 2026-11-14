@@ -8,9 +8,42 @@
 
 export type Align = "left" | "center" | "right";
 
-export type Column = { id: string; name: string; width: number };
+/** how a column's cells read and are edited, as Numbers' cell formats */
+export type ColumnFormat =
+  | "auto"
+  | "number"
+  | "currency"
+  | "percent"
+  | "date"
+  | "checkbox"
+  | "select";
+
+export const FORMATS: { format: ColumnFormat; label: string }[] = [
+  { format: "auto", label: "Automatic" },
+  { format: "number", label: "Number" },
+  { format: "currency", label: "Currency" },
+  { format: "percent", label: "Percentage" },
+  { format: "date", label: "Date" },
+  { format: "checkbox", label: "Checkbox" },
+  { format: "select", label: "Pop-up menu" },
+];
+
+export type Column = {
+  id: string;
+  name: string;
+  width: number;
+  format?: ColumnFormat;
+  /** the choices of a pop-up menu column */
+  options?: string[];
+};
 export type Row = { id: string; cells: Record<string, string> };
-export type CellStyle = { bold?: boolean; align?: Align; fill?: string };
+export type CellStyle = {
+  bold?: boolean;
+  align?: Align;
+  fill?: string;
+  /** text color */
+  color?: string;
+};
 
 export type FilterOp =
   | "contains"
@@ -306,3 +339,59 @@ export const viewRows = (
 };
 
 export const isNumeric = (s: string) => asNumber(s) !== null;
+
+export const setColumn = (
+  t: TableData,
+  colId: string,
+  patch: Partial<Column>,
+): TableData => ({
+  ...t,
+  columns: t.columns.map((c) => (c.id === colId ? { ...c, ...patch } : c)),
+});
+
+/** the same style change on many cells */
+export const setStyles = (
+  t: TableData,
+  cells: { rowId: string; colId: string }[],
+  patch: CellStyle,
+): TableData => {
+  const styles = { ...t.styles };
+  for (const { rowId, colId } of cells) {
+    const key = styleKey(rowId, colId);
+    styles[key] = { ...styles[key], ...patch };
+  }
+  return { ...t, styles };
+};
+
+/** the same value in many cells (empty clears them) */
+export const setCells = (
+  t: TableData,
+  cells: { rowId: string; colId: string; value: string }[],
+): TableData => {
+  const byRow = new Map<string, Record<string, string>>();
+  for (const { rowId, colId, value } of cells) {
+    byRow.set(rowId, { ...(byRow.get(rowId) ?? {}), [colId]: value });
+  }
+  return {
+    ...t,
+    rows: t.rows.map((r) =>
+      byRow.has(r.id) ? { ...r, cells: { ...r.cells, ...byRow.get(r.id) } } : r,
+    ),
+  };
+};
+
+export const deleteRows = (t: TableData, rowIds: string[]): TableData => {
+  const rows = t.rows.filter((r) => !rowIds.includes(r.id));
+  return rows.length ? { ...t, rows } : t;
+};
+
+/** a new row above `beforeRowId` */
+export const addRowBefore = (t: TableData, beforeRowId: string): TableData => {
+  const i = t.rows.findIndex((r) => r.id === beforeRowId);
+  const rows = [...t.rows];
+  rows.splice(Math.max(i, 0), 0, { id: newId(), cells: {} });
+  return { ...t, rows };
+};
+
+export const isChecked = (v: string) =>
+  /^(true|yes|y|1|x|✓|☑|checked)$/i.test(v.trim());

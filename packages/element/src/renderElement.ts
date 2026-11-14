@@ -1113,7 +1113,7 @@ const drawElement = (
               0,
               element.width,
               element.height,
-              FRAME_STYLE.radius / appState.zoom.value,
+              FRAME_STYLE.radius, // job book (fork): the same rounding on the board at every zoom
             );
             context.stroke();
             context.closePath();

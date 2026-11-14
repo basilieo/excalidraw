@@ -8,6 +8,7 @@ import { createContext, useContext } from "react";
 import { DEFAULT_PAPER } from "./paper";
 
 import type { Orientation, Units } from "./paper";
+import type { Discipline } from "./sheets";
 
 export type ColorBy = "discipline" | "status";
 /** Excalidraw's own arrow types: curved, elbow, straight */
@@ -22,6 +23,8 @@ export type BoardSettings = {
   connector: ConnectorStyle;
   /** phase and status colors changed for this board, by code */
   colors: Record<string, string>;
+  /** the board's sheet groups, once any is renamed, recoded or added */
+  groups?: Discipline[];
 };
 
 export const DEFAULT_SETTINGS: BoardSettings = {

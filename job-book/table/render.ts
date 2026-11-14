@@ -37,9 +37,9 @@ const LAID_KEY = "jbTableLaidWidth";
 const INK = "#1e1e1e";
 const ERROR = "#e03131";
 const HEADER_FILL = "#f1f3f5";
-// mid greys, so the grid still shows when dark mode inverts the board
-const LINE = "#ced4da";
 const EDGE = "#868e96";
+const CHECK = "#4263eb";
+const MUTED_INK = "#868e96";
 
 export const isTableAnchor = (el: ExcalidrawElement) =>
   !el.isDeleted && !!(el.customData as any)?.[TABLE_KEY];
@@ -80,7 +80,7 @@ export const tableAnchor = (
       y,
       width: layout.width,
       height: layout.height,
-      strokeColor: "transparent",
+      strokeColor: EDGE,
       backgroundColor: "#ffffff",
       fillStyle: "solid",
       strokeWidth: 1,
@@ -141,7 +141,11 @@ export const updateTable = (
 
 const signature = (anchor: ExcalidrawElement, t: TableData) =>
   JSON.stringify([
+    "t2",
     t,
+    anchor.strokeColor,
+    anchor.strokeStyle,
+    anchor.strokeWidth,
     Math.round(anchor.x * 10),
     Math.round(anchor.y * 10),
     anchor.frameId,
@@ -181,14 +185,25 @@ const buildParts = (
       roughness: 0,
       roundness: null,
     });
+  // the table's grid follows the anchor's own stroke (Excalidraw's stroke
+  // color, style and width), and inner lines are lighter than the edge,
+  // which the anchor draws itself, rounded or not
+  const grid =
+    anchor.strokeColor && anchor.strokeColor !== "transparent"
+      ? anchor.strokeColor
+      : EDGE;
+  const fade = new Map<string, number>();
   const line = (
     part: string,
     x: number,
     y: number,
     dx: number,
     dy: number,
-    color: string,
-  ) =>
+    opacity = 1,
+  ) => {
+    if (opacity !== 1) {
+      fade.set(id(part), opacity);
+    }
     skeletons.push({
       type: "line",
       id: id(part),
@@ -200,11 +215,13 @@ const buildParts = (
         [0, 0],
         [dx, dy],
       ],
-      strokeColor: color,
-      strokeWidth: 1,
+      strokeColor: grid,
+      strokeStyle: anchor.strokeStyle,
+      strokeWidth: anchor.strokeWidth || 1,
       roughness: 0,
       roundness: null,
     });
+  };
 
   rect("header", 0, 0, layout.width, layout.headerHeight, HEADER_FILL);
   for (const c of layout.cells) {
@@ -220,24 +237,56 @@ const buildParts = (
     }
   }
 
-  // the grid: outer edge and the header's underline a shade darker
-  line("h:top", 0, 0, layout.width, 0, EDGE);
-  line("h:header", 0, layout.headerHeight, layout.width, 0, EDGE);
-  layout.rows.forEach((r, i) => {
-    const last = i === layout.rows.length - 1;
-    line(
-      `h:${r.row.id}`,
-      0,
-      r.y + r.height,
-      layout.width,
-      0,
-      last ? EDGE : LINE,
-    );
+  line("h:header", 0, layout.headerHeight, layout.width, 0);
+  layout.rows.slice(0, -1).forEach((r) => {
+    line(`h:${r.row.id}`, 0, r.y + r.height, layout.width, 0, 0.5);
   });
-  layout.columns.forEach((c, i) => {
-    line(`v:${c.id}`, c.x, 0, 0, layout.height, i === 0 ? EDGE : LINE);
+  layout.columns.slice(1).forEach((c) => {
+    line(`v:${c.id}`, c.x, 0, 0, layout.height, 0.5);
   });
-  line("v:end", layout.width, 0, 0, layout.height, EDGE);
+
+  // checkbox cells: a box, filled and ticked when checked
+  for (const c of layout.cells) {
+    if (!c.checkbox) {
+      continue;
+    }
+    const size = 15;
+    const bx = c.x + (c.width - size) / 2;
+    const by = c.y + (c.height - size) / 2;
+    skeletons.push({
+      type: "rectangle",
+      id: id(`check:${c.rowId}:${c.colId}`),
+      x: ox + bx,
+      y: oy + by,
+      width: size,
+      height: size,
+      strokeColor: c.checked ? CHECK : MUTED_INK,
+      backgroundColor: c.checked ? CHECK : "#ffffff",
+      fillStyle: "solid",
+      strokeWidth: 1.5,
+      roughness: 0,
+      roundness: { type: 3, value: 3 },
+    });
+    if (c.checked) {
+      skeletons.push({
+        type: "line",
+        id: id(`tick:${c.rowId}:${c.colId}`),
+        x: ox + bx + 3.5,
+        y: oy + by + 7.5,
+        width: 8,
+        height: 5,
+        points: [
+          [0, 0],
+          [2.8, 3],
+          [8, -2.5],
+        ],
+        strokeColor: "#ffffff",
+        strokeWidth: 2,
+        roughness: 0,
+        roundness: null,
+      });
+    }
+  }
 
   const texts: {
     part: string;
@@ -259,7 +308,8 @@ const buildParts = (
       fontFamily: FONT_FAMILY.Helvetica,
       lineHeight: LINE_HEIGHT,
       textAlign: c.align,
-      strokeColor: c.shown.startsWith("#") && !isHeader(c) ? ERROR : INK,
+      strokeColor:
+        c.shown.startsWith("#") && !isHeader(c) ? ERROR : c.style.color ?? INK,
       roughness: 0,
     };
     skeletons.push({ ...text, id: id(part) });
@@ -294,7 +344,7 @@ const buildParts = (
       ...el,
       x,
       frameId: anchor.frameId,
-      opacity: anchor.opacity,
+      opacity: Math.round(anchor.opacity * (fade.get(el.id) ?? 1)),
       locked: true,
       customData: {
         [PART_KEY]: { anchorId: anchor.id, sig, ax: anchor.x, ay: anchor.y },
@@ -349,6 +399,7 @@ export const syncTables = (
     const layout = layoutTable(data, tableDisplay(data));
     if (
       scaled ||
+      anchor.strokeColor === "transparent" ||
       Math.abs(anchor.width - layout.width) > 0.5 ||
       Math.abs(anchor.height - layout.height) > 0.5 ||
       laid === undefined ||
@@ -357,6 +408,8 @@ export const syncTables = (
       anchor = newElementWith(anchor, {
         width: layout.width,
         height: layout.height,
+        // tables from before the border was the anchor's own get one
+        ...(anchor.strokeColor === "transparent" ? { strokeColor: EDGE } : {}),
         customData: {
           ...anchor.customData,
           [TABLE_KEY]: data,
@@ -440,4 +493,28 @@ const followDrag = (
     captureUpdate: CaptureUpdateAction.NEVER,
   });
   return true;
+};
+
+/** change how a table looks (its grid, corners, fill): the anchor's own style */
+export const styleTable = (
+  api: ExcalidrawImperativeAPI,
+  anchorId: string,
+  patch: Partial<
+    Pick<
+      ExcalidrawElement,
+      | "strokeColor"
+      | "strokeStyle"
+      | "strokeWidth"
+      | "roundness"
+      | "backgroundColor"
+      | "opacity"
+    >
+  >,
+) => {
+  api.updateScene({
+    elements: api
+      .getSceneElementsIncludingDeleted()
+      .map((el) => (el.id === anchorId ? newElementWith(el, patch as any) : el)),
+    captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+  });
 };
