@@ -86,6 +86,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
     renderTopRightUI,
     renderToolbarExtras,
     renderExtraToolsItems,
+    mouseWheelZoomRate,
     langCode = defaultLang.code,
     viewModeEnabled,
     interaction,
@@ -231,6 +232,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
           renderTopRightUI={renderTopRightUI}
           renderToolbarExtras={renderToolbarExtras}
           renderExtraToolsItems={renderExtraToolsItems}
+          mouseWheelZoomRate={mouseWheelZoomRate}
           langCode={langCode}
           viewModeEnabled={viewModeEnabled}
           interaction={interaction}

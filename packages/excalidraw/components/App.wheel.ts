@@ -87,6 +87,18 @@ export class AppWheel {
           (hasZoomModifier ||
             resolveInputDevice(this.app.state.inputDevice) === "mouse")));
     if (shouldZoom) {
+      // job book (fork): a plain mouse wheel zooms by a steady percentage
+      const rate = this.app.props.mouseWheelZoomRate;
+      if (rate && !hasZoomModifier && !isWheelButtonHeld) {
+        // a line-based wheel (Firefox) reports lines, not pixels
+        const px = event.deltaMode === 1 ? deltaY * 33 : deltaY;
+        this.zoomBy(
+          deltaY,
+          "pointer",
+          Math.exp(-Math.max(-300, Math.min(300, px)) * rate),
+        );
+        return;
+      }
       this.zoomBy(deltaY);
       return;
     }
@@ -124,7 +136,12 @@ export class AppWheel {
    * around the center of the viewport (when wheeling elsewhere than over
    * the canvas, e.g. over the minimap).
    */
-  zoomBy = (deltaY: number, anchor: "pointer" | "center" = "pointer") => {
+  zoomBy = (
+    deltaY: number,
+    anchor: "pointer" | "center" = "pointer",
+    /** job book (fork): multiply the zoom by this instead of stepping it */
+    factor?: number,
+  ) => {
     const { viewport } = this.app;
 
     const sign = Math.sign(deltaY);
@@ -151,6 +168,9 @@ export class AppWheel {
           -sign *
           // reduced amplification for small deltas (small movements on a trackpad)
           Math.min(1, absDelta / 20);
+        if (factor !== undefined) {
+          newZoom = state.zoom.value * factor;
+        }
 
         const minZoom = state.scrollConstraints?.lockZoom
           ? state.scrollConstraints.zoom

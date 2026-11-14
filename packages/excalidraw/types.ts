@@ -984,6 +984,13 @@ export interface ExcalidrawProps {
     isMobile: boolean,
     appState: UIAppState,
   ) => JSX.Element | null;
+  /**
+   * job book (fork): when set, a plain mouse-wheel zoom changes the zoom by
+   * a steady percentage per notch — `exp(rate × wheel delta)`, so 0.0007 is
+   * about 7% per 100-pixel notch — instead of a fixed step that feels much
+   * faster when zoomed out. Pinch and ctrl/cmd+wheel are unaffected.
+   */
+  mouseWheelZoomRate?: number;
   /** job book (fork): extra buttons at the end of the main toolbar */
   renderToolbarExtras?: () => React.ReactNode;
   /**

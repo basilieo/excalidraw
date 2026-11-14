@@ -570,6 +570,8 @@ const Editor = ({
               loadScene: false,
             },
           }}
+          // a mouse wheel notch zooms about 7%, the same at any zoom
+          mouseWheelZoomRate={0.0007}
           renderToolbarExtras={() => (config.canEdit ? <AttachButton /> : null)}
           renderExtraToolsItems={(close) =>
             config.canEdit ? (
