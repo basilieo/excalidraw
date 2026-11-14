@@ -113,6 +113,26 @@ const buildScene = (
   };
 };
 
+// What the scroll wheel does: "mouse" zooms around the cursor, "trackpad"
+// pans (Excalidraw's own setting, Preferences > Input). It belongs to the
+// person and their computer, not the board, so it is kept in this browser
+// and never saved with the board. A mouse is the default.
+const INPUT_DEVICE_KEY = "jobbook.inputDevice";
+const readInputDevice = (): AppState["inputDevice"] => {
+  try {
+    const v = localStorage.getItem(INPUT_DEVICE_KEY);
+    if (v === "mouse" || v === "trackpad") {
+      return v;
+    }
+  } catch {}
+  return "mouse";
+};
+const writeInputDevice = (v: AppState["inputDevice"]) => {
+  try {
+    localStorage.setItem(INPUT_DEVICE_KEY, v);
+  } catch {}
+};
+
 // light / dark is shared with the rest of the fab library, which keeps the
 // pick in localStorage under "theme"
 const readTheme = () => {
@@ -143,6 +163,7 @@ const Editor = ({
   const currentKey = useRef<string | null>(null);
   const saveTimer = useRef<number | undefined>(undefined);
   const syncQueued = useRef(false);
+  const inputDevice = useRef(readInputDevice());
   const [settings, setSettings] = useState<BoardSettings>(DEFAULT_SETTINGS);
   const settingsRef = useRef<BoardSettings>(DEFAULT_SETTINGS);
 
@@ -165,6 +186,7 @@ const Editor = ({
             ...(scene?.appState ?? {}),
             // the sheet index starts open
             openSidebar: { name: SHEETS_SIDEBAR },
+            inputDevice: inputDevice.current,
           },
           files: (scene?.files ?? {}) as BinaryFiles,
           scrollToContent: true,
@@ -224,6 +246,10 @@ const Editor = ({
     ) => {
       if (!api || statusRef.current === "loading") {
         return;
+      }
+      if (appState.inputDevice !== inputDevice.current) {
+        inputDevice.current = appState.inputDevice;
+        writeInputDevice(appState.inputDevice);
       }
       const busy =
         appState.selectedElementsAreBeingDragged ||
@@ -522,6 +548,7 @@ const Editor = ({
           <MainMenu.DefaultItems.SaveAsImage />
           <MainMenu.DefaultItems.SearchMenu />
           <MainMenu.DefaultItems.Help />
+          <MainMenu.DefaultItems.Preferences />
           <MainMenu.Separator />
           <MainMenu.DefaultItems.ToggleTheme allowSystemTheme={false} />
           <MainMenu.DefaultItems.ChangeCanvasBackground />
