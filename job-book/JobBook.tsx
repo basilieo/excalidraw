@@ -245,16 +245,18 @@ const Editor = ({
       }
       syncTitleBlocks(editor, config.project);
       // what loaded counts as saved, even after title blocks are brought up
-      // to date. The panel and the zoom wait a frame: the editor is still
+      // to date. The panel and the zoom wait a moment: the editor is still
       // applying the loaded scene's state during this callback.
-      requestAnimationFrame(() => {
+      // Timers, not animation frames: a page in a background tab gets no
+      // frames, and the board must still load and save there.
+      window.setTimeout(() => {
         if (editor.getAppState().openSidebar?.name !== SHEETS_SIDEBAR) {
           editor.toggleSidebar({ name: SHEETS_SIDEBAR, force: true });
         }
       });
       // and the zoom waits for the panel, so it can leave room for it
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => {
+      window.setTimeout(
+        () => {
           const elements = editor.getSceneElements();
           if (elements.length) {
             editor.setViewport({
@@ -271,7 +273,9 @@ const Editor = ({
           );
           currentKey.current = savedKey.current;
           set(config.canEdit ? "saved" : "readonly");
-        }),
+        },
+        // after the panel above has opened
+        50,
       );
     },
     [config.canEdit, config.project],
