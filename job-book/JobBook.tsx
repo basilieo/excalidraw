@@ -1,4 +1,5 @@
 import {
+  DefaultSidebar,
   Excalidraw,
   ExcalidrawAPIProvider,
   FONT_FAMILY,
@@ -6,6 +7,7 @@ import {
   Sidebar,
   THEME,
   useExcalidrawAPI,
+  useHandleLibrary,
   viewportCoordsToSceneCoords,
 } from "@excalidraw/excalidraw";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -22,6 +24,8 @@ import {
 } from "./sheets";
 
 import type { BoardSettings } from "./settings";
+
+import { createLibraryAdapter } from "./storage";
 
 import type { BoardStorage, JobBookConfig, StoredScene } from "./storage";
 import type { ExcalidrawElement } from "@excalidraw/element/types";
@@ -155,6 +159,14 @@ const Editor = ({
   storage: BoardStorage;
 }) => {
   const api = useExcalidrawAPI();
+  // the library panel's items, and "Add to Excalidraw" from
+  // libraries.excalidraw.com coming back to this board (#addLibrary=...)
+  const libraryAdapter = useMemo(
+    () => createLibraryAdapter(config),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useHandleLibrary({ excalidrawAPI: api, adapter: libraryAdapter });
   const [status, setStatus] = useState<Status>("loading");
   const [theme, setTheme] = useState(readTheme);
   const statusRef = useRef<Status>("loading");
@@ -553,6 +565,16 @@ const Editor = ({
           <MainMenu.DefaultItems.ToggleTheme allowSystemTheme={false} />
           <MainMenu.DefaultItems.ChangeCanvasBackground />
         </MainMenu>
+        {/* Excalidraw's library panel, labeled, beside the Sheets button.
+            "Browse libraries" in it opens libraries.excalidraw.com; what is
+            added there comes back to the team's shared library. */}
+        <DefaultSidebar.Trigger
+          tab="library"
+          title="Shape library"
+          className="jb-trigger"
+        >
+          Library
+        </DefaultSidebar.Trigger>
         <SheetsPanel
           boardName={config.name}
           listUrl={config.listUrl}

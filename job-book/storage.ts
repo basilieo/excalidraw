@@ -14,6 +14,8 @@ export type JobBookConfig = {
   canEdit: boolean;
   /** POST {name} copies the board into a new template (the fab library) */
   templateUrl?: string | null;
+  /** the team's shared shape library: GET / PUT {libraryItems} */
+  libraryUrl?: string | null;
   isTemplate?: boolean;
 };
 
@@ -148,3 +150,66 @@ class LocalStorage implements BoardStorage {
 
 export const createStorage = (config: JobBookConfig): BoardStorage =>
   config.sceneUrl ? new ServerStorage(config) : new LocalStorage(config);
+
+// ---------------------------------------------------------------------------
+// the shape library
+
+/**
+ * Where Excalidraw's library panel keeps its items. In the fab library it is
+ * one library for the whole team (GET / PUT {libraryItems}), so a shape set
+ * added from libraries.excalidraw.com shows on every board for everyone. On
+ * its own, this browser's localStorage. Excalidraw calls load() just before
+ * every save and reconciles, so two people adding at once both land.
+ */
+export type LibraryAdapter = {
+  load(): Promise<{ libraryItems: any[] } | null>;
+  save(data: { libraryItems: readonly any[] }): Promise<void>;
+};
+
+export const createLibraryAdapter = (config: JobBookConfig): LibraryAdapter => {
+  const url = config.libraryUrl;
+  if (url) {
+    return {
+      async load() {
+        const res = await fetch(url, { credentials: "same-origin" });
+        if (!res.ok) {
+          throw new Error(`Could not load the library (${res.status})`);
+        }
+        return res.json();
+      },
+      async save(data) {
+        const res = await fetch(url, {
+          method: "PUT",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": config.csrfToken ?? "",
+          },
+          body: JSON.stringify({ libraryItems: data.libraryItems }),
+        });
+        if (!res.ok) {
+          // Excalidraw shows this to the person
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error ?? `Library not saved (${res.status})`);
+        }
+      },
+    };
+  }
+  const key = "jobbook:library";
+  return {
+    async load() {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    },
+    async save(data) {
+      localStorage.setItem(
+        key,
+        JSON.stringify({ libraryItems: data.libraryItems }),
+      );
+    },
+  };
+};
