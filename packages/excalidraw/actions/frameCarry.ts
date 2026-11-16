@@ -15,11 +15,46 @@ import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 import type { AppClassProperties, UIAppState } from "../types";
 
+const boxOf = (frame: ExcalidrawElement): BoundingBox => ({
+  minX: frame.x,
+  minY: frame.y,
+  maxX: frame.x + frame.width,
+  maxY: frame.y + frame.height,
+  midX: frame.x + frame.width / 2,
+  midY: frame.y + frame.height / 2,
+  width: frame.width,
+  height: frame.height,
+});
+
 /**
- * The sheet to align the selection to, when the selection is one thing (an
- * element, or one group) sitting on a sheet: the buttons then line it up
- * with the sheet's edges or centre rather than with nothing. Two or more
- * things still align to each other.
+ * When the selection is one sheet and nothing else: what is on it that can
+ * move (not the locked title block, nor anything else locked). The align
+ * buttons then move all of it, as one block, about the sheet.
+ */
+export const sheetContents = (
+  appState: UIAppState,
+  app: AppClassProperties,
+): { sheet: ExcalidrawElement; contents: ExcalidrawElement[] } | null => {
+  if (!app.props.alignFrames) {
+    return null;
+  }
+  const selected = app.scene.getSelectedElements(appState);
+  if (selected.length !== 1 || !isFrameLikeElement(selected[0])) {
+    return null;
+  }
+  const sheet = selected[0];
+  const contents = app.scene
+    .getNonDeletedElements()
+    .filter((el) => el.frameId === sheet.id && !el.locked);
+  return contents.length ? { sheet, contents } : null;
+};
+
+/**
+ * The sheet to align to: the selected sheet itself (its contents move), or,
+ * when the selection is one thing (an element, or one group) sitting on a
+ * sheet, that sheet, so the buttons line it up with the sheet's edges or
+ * centre rather than with nothing. Two or more things still align to each
+ * other.
  */
 export const sheetToAlignTo = (
   appState: UIAppState,
@@ -27,6 +62,10 @@ export const sheetToAlignTo = (
 ): BoundingBox | null => {
   if (!app.props.alignFrames) {
     return null;
+  }
+  const own = sheetContents(appState, app);
+  if (own) {
+    return boxOf(own.sheet);
   }
   const units = app.scene
     .getSelectedElements(appState)
@@ -51,16 +90,7 @@ export const sheetToAlignTo = (
   if (!frame || frame.isDeleted || !isFrameLikeElement(frame)) {
     return null;
   }
-  return {
-    minX: frame.x,
-    minY: frame.y,
-    maxX: frame.x + frame.width,
-    maxY: frame.y + frame.height,
-    midX: frame.x + frame.width / 2,
-    midY: frame.y + frame.height / 2,
-    width: frame.width,
-    height: frame.height,
-  };
+  return boxOf(frame);
 };
 
 /** said after a button's name when it aligns to the sheet */
@@ -68,7 +98,12 @@ export const toSheet = (
   appState: UIAppState,
   app: AppClassProperties,
   word: "to" | "on" = "to",
-) => (sheetToAlignTo(appState, app) ? ` ${word} the sheet` : "");
+) =>
+  sheetContents(appState, app)
+    ? ", everything on the sheet"
+    : sheetToAlignTo(appState, app)
+    ? ` ${word} the sheet`
+    : "";
 
 /** where the selected frames are, before they move */
 export const frameSpots = (selected: readonly ExcalidrawElement[]) =>

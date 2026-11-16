@@ -35,6 +35,7 @@ import { getShortcutKey } from "../shortcut";
 import {
   carryFrameContents,
   frameSpots,
+  sheetContents,
   sheetToAlignTo,
   toSheet,
   withoutFrameContents,
@@ -70,13 +71,15 @@ const alignSelectedElements = (
   app: AppClassProperties,
   alignment: Alignment,
 ) => {
+  // job book (fork): one sheet selected moves what is on it, as one block
+  const own = sheetContents(appState, app);
   const selectedElements = withoutFrameContents(
     app.scene.getSelectedElements(appState),
   );
-  const spots = frameSpots(selectedElements);
+  const spots = own ? new Map() : frameSpots(selectedElements);
 
   const updatedElements = alignElements(
-    selectedElements,
+    (own?.contents ?? selectedElements) as typeof selectedElements,
     alignment,
     app.scene,
     appState,
