@@ -24,13 +24,20 @@ export const alignElements = (
   appState: Readonly<AppState>,
   /** measures the labels of the bound arrows the alignment moves */
   renderEnvironment?: RenderEnvironment,
+  /**
+   * job book (fork): align the whole selection, as one, to this box (the
+   * sheet it sits on) instead of its members to each other
+   */
+  target?: BoundingBox,
 ): NonDeletedExcalidrawElement[] => {
-  const groups = getSelectedElementsByGroup(
+  const byGroup = getSelectedElementsByGroup(
     selectedElements,
     scene.getNonDeletedElementsMap(),
     appState,
   ).map(getNonDeletedElements); // Nothing to align on deleted elements
-  const selectionBoundingBox = getCommonBoundingBox(selectedElements);
+  const groups = target ? [byGroup.flat()] : byGroup;
+  const selectionBoundingBox =
+    target ?? getCommonBoundingBox(selectedElements);
 
   return groups.flatMap((group) => {
     const translation = calculateTranslation(

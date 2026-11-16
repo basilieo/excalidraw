@@ -22,6 +22,7 @@ import type {
 } from "@excalidraw/element/types";
 
 import { alignActionsPredicate } from "../actions/actionAlign";
+import { sheetToAlignTo } from "../actions/frameCarry";
 import {
   canChangeRoundness,
   canHaveArrowheads,
@@ -167,7 +168,9 @@ export const getShapeActionPredicates = (
         (element) => element.type === "freedraw",
       ),
     align:
-      !isSingleElementBoundContainer && alignActionsPredicate(appState, app),
+      // job book (fork): a box with its text, alone on a sheet, aligns to it
+      (!isSingleElementBoundContainer || !!sheetToAlignTo(appState, app)) &&
+      alignActionsPredicate(appState, app),
     distribute: targetElements.length > 2,
 
     // per-element actions

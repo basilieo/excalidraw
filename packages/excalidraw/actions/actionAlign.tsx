@@ -35,6 +35,8 @@ import { getShortcutKey } from "../shortcut";
 import {
   carryFrameContents,
   frameSpots,
+  sheetToAlignTo,
+  toSheet,
   withoutFrameContents,
 } from "./frameCarry";
 import { register } from "./register";
@@ -46,6 +48,9 @@ export const alignActionsPredicate = (
   app: AppClassProperties,
 ) => {
   const selectedElements = app.scene.getSelectedElements(appState);
+  if (sheetToAlignTo(appState, app)) {
+    return true;
+  }
   return (
     getSelectedElementsByGroup(
       selectedElements,
@@ -76,6 +81,7 @@ const alignSelectedElements = (
     app.scene,
     appState,
     app.renderEnvironment,
+    sheetToAlignTo(appState, app) ?? undefined,
   );
 
   const updatedElementsMap = arrayToMap([
@@ -115,7 +121,7 @@ export const actionAlignTop = register({
       type="button"
       icon={AlignTopIcon}
       onClick={() => updateData(null)}
-      title={`${t("labels.alignTop")} — ${getShortcutKey(
+      title={`${t("labels.alignTop")}${toSheet(appState, app)} — ${getShortcutKey(
         "CtrlOrCmd+Shift+Up",
       )}`}
       aria-label={t("labels.alignTop")}
@@ -149,7 +155,7 @@ export const actionAlignBottom = register({
       type="button"
       icon={AlignBottomIcon}
       onClick={() => updateData(null)}
-      title={`${t("labels.alignBottom")} — ${getShortcutKey(
+      title={`${t("labels.alignBottom")}${toSheet(appState, app)} — ${getShortcutKey(
         "CtrlOrCmd+Shift+Down",
       )}`}
       aria-label={t("labels.alignBottom")}
@@ -183,7 +189,7 @@ export const actionAlignLeft = register({
       type="button"
       icon={AlignLeftIcon}
       onClick={() => updateData(null)}
-      title={`${t("labels.alignLeft")} — ${getShortcutKey(
+      title={`${t("labels.alignLeft")}${toSheet(appState, app)} — ${getShortcutKey(
         "CtrlOrCmd+Shift+Left",
       )}`}
       aria-label={t("labels.alignLeft")}
@@ -217,7 +223,7 @@ export const actionAlignRight = register({
       type="button"
       icon={AlignRightIcon}
       onClick={() => updateData(null)}
-      title={`${t("labels.alignRight")} — ${getShortcutKey(
+      title={`${t("labels.alignRight")}${toSheet(appState, app)} — ${getShortcutKey(
         "CtrlOrCmd+Shift+Right",
       )}`}
       aria-label={t("labels.alignRight")}
@@ -249,7 +255,7 @@ export const actionAlignVerticallyCentered = register({
       type="button"
       icon={CenterVerticallyIcon}
       onClick={() => updateData(null)}
-      title={t("labels.centerVertically")}
+      title={`${t("labels.centerVertically")}${toSheet(appState, app, "on")}`}
       aria-label={t("labels.centerVertically")}
       visible={isSomeElementSelected(getNonDeletedElements(elements), appState)}
     />
@@ -279,7 +285,7 @@ export const actionAlignHorizontallyCentered = register({
       type="button"
       icon={CenterHorizontallyIcon}
       onClick={() => updateData(null)}
-      title={t("labels.centerHorizontally")}
+      title={`${t("labels.centerHorizontally")}${toSheet(appState, app, "on")}`}
       aria-label={t("labels.centerHorizontally")}
       visible={isSomeElementSelected(getNonDeletedElements(elements), appState)}
     />
