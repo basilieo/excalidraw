@@ -1892,3 +1892,21 @@ body.jb-table-format .excalidraw .App-menu__left {
 .jb-group.is-hidden .jb-eye {
   color: var(--color-primary, #6965db);
 }
+/* a sheet's own eye, at the end of its row: there when pointed at, and
+   while the sheet is hidden */
+.jb-sheet-eye {
+  margin-left: auto;
+  flex: none;
+  visibility: hidden;
+}
+.jb-sheet:hover .jb-sheet-eye,
+.jb-sheet-eye:focus-visible,
+.jb-sheet.is-hidden .jb-sheet-eye {
+  visibility: visible;
+}
+.jb-sheet.is-hidden > :not(.jb-sheet-eye) {
+  opacity: 0.45;
+}
+.jb-sheet.is-hidden .jb-sheet-eye {
+  color: var(--color-primary, #6965db);
+}

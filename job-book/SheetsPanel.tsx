@@ -21,7 +21,12 @@ import { useSettings } from "./settings";
 import { useSheetTableView } from "./SheetTable";
 import { useSheets } from "./useSheets";
 import { openPrint } from "./PrintDialog";
-import { toggleGroupHidden, useHiddenGroups } from "./hidden";
+import {
+  isSheetHidden,
+  toggleGroupHidden,
+  toggleSheetHidden,
+  useHiddenGroups,
+} from "./hidden";
 import {
   addSheet,
   DISCIPLINES,
@@ -378,12 +383,13 @@ const SheetRow = ({
   const [renaming, setRenaming] = useState(false);
   const [over, setOver] = useState(false);
   const status = statusOf(sheet.data.status);
+  const hidden = isSheetHidden(useHiddenGroups(), sheet.frame.id);
 
   return (
     <li
       className={`jb-sheet${active ? " is-active" : ""}${
         over ? " is-over" : ""
-      }`}
+      }${hidden ? " is-hidden" : ""}`}
       data-ref={`sheet.${sheet.data.number || sheet.frame.id}`}
       draggable={canEdit && !renaming}
       onDragStart={(e) => {
@@ -433,6 +439,20 @@ const SheetRow = ({
       {sheet.data.revision && sheet.data.revision !== "0" && (
         <span className="jb-rev">R{sheet.data.revision}</span>
       )}
+      <button
+        type="button"
+        className="jb-eye jb-sheet-eye"
+        data-ref={`hide.sheet.${sheet.data.number || sheet.frame.id}`}
+        title={hidden ? "Show this sheet" : "Hide this sheet"}
+        aria-pressed={hidden}
+        onClick={(e) => {
+          e.stopPropagation(); // the row's own click goes to the sheet
+          toggleSheetHidden(sheet.frame.id);
+        }}
+        onDoubleClick={(e) => e.stopPropagation()}
+      >
+        {hidden ? EyeClosedIcon : EyeIcon}
+      </button>
     </li>
   );
 };
