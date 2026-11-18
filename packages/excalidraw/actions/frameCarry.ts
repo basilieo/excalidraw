@@ -29,7 +29,9 @@ const boxOf = (frame: ExcalidrawElement): BoundingBox => ({
 /**
  * When the selection is one sheet and nothing else: what is on it that can
  * move (not the locked title block, nor anything else locked). The align
- * buttons then move all of it, as one block, about the sheet.
+ * buttons then move all of it, as one block, about the sheet. An empty
+ * sheet still answers, with no contents, so the buttons show (greyed)
+ * whenever a sheet is selected rather than appearing and vanishing.
  */
 export const sheetContents = (
   appState: UIAppState,
@@ -46,8 +48,12 @@ export const sheetContents = (
   const contents = app.scene
     .getNonDeletedElements()
     .filter((el) => el.frameId === sheet.id && !el.locked);
-  return contents.length ? { sheet, contents } : null;
+  return { sheet, contents };
 };
+
+/** one sheet selected with nothing on it that could move */
+export const emptySheet = (appState: UIAppState, app: AppClassProperties) =>
+  sheetContents(appState, app)?.contents.length === 0;
 
 /**
  * The sheet to align to: the selected sheet itself (its contents move), or,
@@ -99,7 +105,9 @@ export const toSheet = (
   app: AppClassProperties,
   word: "to" | "on" = "to",
 ) =>
-  sheetContents(appState, app)
+  emptySheet(appState, app)
+    ? ": nothing on the sheet to move"
+    : sheetContents(appState, app)
     ? ", everything on the sheet"
     : sheetToAlignTo(appState, app)
     ? ` ${word} the sheet`

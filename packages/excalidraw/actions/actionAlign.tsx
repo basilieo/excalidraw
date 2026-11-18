@@ -34,6 +34,7 @@ import { getShortcutKey } from "../shortcut";
 
 import {
   carryFrameContents,
+  emptySheet,
   frameSpots,
   sheetContents,
   sheetToAlignTo,
@@ -73,6 +74,9 @@ const alignSelectedElements = (
 ) => {
   // job book (fork): one sheet selected moves what is on it, as one block
   const own = sheetContents(appState, app);
+  if (own && !own.contents.length) {
+    return elements;
+  }
   const selectedElements = withoutFrameContents(
     app.scene.getSelectedElements(appState),
   );
@@ -122,6 +126,7 @@ export const actionAlignTop = register({
     <IconButton
       hidden={!alignActionsPredicate(appState, app)}
       type="button"
+      disabled={emptySheet(appState, app)}
       icon={AlignTopIcon}
       onClick={() => updateData(null)}
       title={`${t("labels.alignTop")}${toSheet(appState, app)} — ${getShortcutKey(
@@ -156,6 +161,7 @@ export const actionAlignBottom = register({
     <IconButton
       hidden={!alignActionsPredicate(appState, app)}
       type="button"
+      disabled={emptySheet(appState, app)}
       icon={AlignBottomIcon}
       onClick={() => updateData(null)}
       title={`${t("labels.alignBottom")}${toSheet(appState, app)} — ${getShortcutKey(
@@ -190,6 +196,7 @@ export const actionAlignLeft = register({
     <IconButton
       hidden={!alignActionsPredicate(appState, app)}
       type="button"
+      disabled={emptySheet(appState, app)}
       icon={AlignLeftIcon}
       onClick={() => updateData(null)}
       title={`${t("labels.alignLeft")}${toSheet(appState, app)} — ${getShortcutKey(
@@ -224,6 +231,7 @@ export const actionAlignRight = register({
     <IconButton
       hidden={!alignActionsPredicate(appState, app)}
       type="button"
+      disabled={emptySheet(appState, app)}
       icon={AlignRightIcon}
       onClick={() => updateData(null)}
       title={`${t("labels.alignRight")}${toSheet(appState, app)} — ${getShortcutKey(
@@ -256,6 +264,7 @@ export const actionAlignVerticallyCentered = register({
     <IconButton
       hidden={!alignActionsPredicate(appState, app)}
       type="button"
+      disabled={emptySheet(appState, app)}
       icon={CenterVerticallyIcon}
       onClick={() => updateData(null)}
       title={`${t("labels.centerVertically")}${toSheet(appState, app, "on")}`}
@@ -286,6 +295,7 @@ export const actionAlignHorizontallyCentered = register({
     <IconButton
       hidden={!alignActionsPredicate(appState, app)}
       type="button"
+      disabled={emptySheet(appState, app)}
       icon={CenterHorizontallyIcon}
       onClick={() => updateData(null)}
       title={`${t("labels.centerHorizontally")}${toSheet(appState, app, "on")}`}

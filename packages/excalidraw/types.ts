@@ -1024,13 +1024,6 @@ export interface ExcalidrawProps {
   /** job book (fork): extra buttons at the end of the main toolbar */
   renderToolbarExtras?: () => React.ReactNode;
   /**
-   * job book (fork): extra controls at the top of the properties panel,
-   * for what is selected (a sheet's details)
-   */
-  renderShapeActionsExtras?: (
-    selected: readonly ExcalidrawElement[],
-  ) => React.ReactNode;
-  /**
    * job book (fork): extra entries at the end of the toolbar's more-tools
    * (⋮) menu; `close` shuts the menu
    */
