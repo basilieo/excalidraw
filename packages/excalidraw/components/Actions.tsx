@@ -169,6 +169,7 @@ export const SelectedShapeActions = ({
 
   return (
     <div className="selected-shape-actions">
+      {app.props.renderShapeActionsExtras?.(targetElements)}
       <div>{predicates.strokeColor && renderAction("changeStrokeColor")}</div>
       {predicates.backgroundColor && (
         <div>{renderAction("changeBackgroundColor")}</div>

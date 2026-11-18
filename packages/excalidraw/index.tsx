@@ -85,6 +85,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
     renderTopLeftUI,
     renderTopRightUI,
     renderToolbarExtras,
+    renderShapeActionsExtras,
     renderExtraToolsItems,
     mouseWheelZoomRate,
     directionalBoxSelection,
@@ -237,6 +238,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
           renderTopLeftUI={renderTopLeftUI}
           renderTopRightUI={renderTopRightUI}
           renderToolbarExtras={renderToolbarExtras}
+          renderShapeActionsExtras={renderShapeActionsExtras}
           renderExtraToolsItems={renderExtraToolsItems}
           mouseWheelZoomRate={mouseWheelZoomRate}
           directionalBoxSelection={directionalBoxSelection}

@@ -365,6 +365,30 @@ const SheetEditor = ({
   );
 };
 
+/**
+ * The selected sheet's details at the top of the properties panel on the
+ * left (the palette), the same editor as the one under the sheet index.
+ */
+export const SheetPalette = ({
+  frameId,
+  canEdit,
+}: {
+  frameId: string;
+  canEdit: boolean;
+}) => {
+  const { sheets } = useSheets();
+  const sheet = sheets.find((s) => s.frame.id === frameId);
+  if (!sheet) {
+    return null;
+  }
+  return (
+    <fieldset className="jb-panel jb-palette" data-ref="sheet-palette">
+      <legend>Sheet</legend>
+      <SheetEditor sheet={sheet} sheets={sheets} canEdit={canEdit} />
+    </fieldset>
+  );
+};
+
 const SheetRow = ({
   sheet,
   active,

@@ -63,7 +63,7 @@ const LibraryIcon = (
 import { TableLayer } from "./table/TableLayer";
 import { importPdf, isPdf } from "./pdf";
 import { DEFAULT_SETTINGS, readSettings, SettingsContext } from "./settings";
-import { SHEETS_SIDEBAR, SheetsPanel } from "./SheetsPanel";
+import { SHEETS_SIDEBAR, SheetPalette, SheetsPanel } from "./SheetsPanel";
 import {
   adoptFrames,
   enforceSheetSizes,
@@ -698,6 +698,16 @@ const Editor = ({
           isElementSelectable={isSelectable}
           isElementHidden={isHidden}
           hiddenKey={hiddenKey}
+          renderShapeActionsExtras={(selected) =>
+            // one sheet selected: its details head the properties panel
+            selected.length === 1 && selected[0].type === "frame" ? (
+              <SheetPalette
+                key={selected[0].id}
+                frameId={selected[0].id}
+                canEdit={config.canEdit}
+              />
+            ) : null
+          }
           renderToolbarExtras={() =>
             config.canEdit ? (
               <>

@@ -247,6 +247,35 @@ body,
   gap: 0.4rem;
 }
 
+/* the same editor at the top of the properties panel (the palette), when
+   a sheet is selected: narrower, so its paired fields stack */
+.excalidraw .jb-palette {
+  border: none;
+  margin: 0;
+  padding: 0;
+  flex: none;
+  overflow: visible;
+  gap: 0;
+  font-size: 0.8rem;
+}
+.jb-palette .jb-editor {
+  border-top: none;
+  padding-top: 0;
+}
+.jb-palette .jb-editor-head {
+  margin-bottom: 0.35rem;
+}
+.jb-palette .jb-row:not(.jb-size) {
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.jb-palette .jb-size {
+  gap: 0.3rem;
+}
+.jb-palette .jb-size .jb-ghost {
+  padding: 0.35rem 0.4rem;
+}
+
 /* add, board settings */
 
 .jb-section {
