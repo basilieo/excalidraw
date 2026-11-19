@@ -24,6 +24,11 @@ import {
   getEmbedLink,
 } from "@excalidraw/element";
 import { LinearElementEditor } from "@excalidraw/element";
+import {
+  getLineJumps,
+  lineJumpsEnabled,
+  lineJumpsPath,
+} from "@excalidraw/element";
 import { getBoundTextElement, getContainerElement } from "@excalidraw/element";
 import { getLineHeightInPx } from "@excalidraw/element";
 import {
@@ -482,12 +487,48 @@ const renderElementToSvg = (
       group.setAttribute("stroke-linecap", "round");
 
       const shapes = ShapeCache.generateElementShape(element, renderConfig);
-      shapes.forEach((shape) => {
-        const node = roughSVGDrawWithPrecision(
-          rsvg,
-          shape,
-          MAX_DECIMALS_FOR_SVG_EXPORT,
-        );
+      // job book (fork): a connector with line jumps is written with its
+      // hops; its arrowheads as usual
+      const jumps = lineJumpsEnabled(element)
+        ? getLineJumps(element, elementsMap)
+        : [];
+      shapes.forEach((shape, index) => {
+        let node: SVGElement;
+        if (index === 0 && jumps.length) {
+          node = svgRoot.ownerDocument.createElementNS(SVG_NS, "path");
+          node.setAttribute("d", lineJumpsPath(element, jumps));
+          node.setAttribute("fill", "none");
+          node.setAttribute(
+            "stroke",
+            applyDarkModeFilter(
+              element.strokeColor,
+              renderConfig.theme === THEME.DARK,
+            ),
+          );
+          node.setAttribute(
+            "stroke-width",
+            `${
+              element.strokeStyle !== "solid"
+                ? element.strokeWidth + 0.5
+                : element.strokeWidth
+            }`,
+          );
+          node.setAttribute("stroke-linejoin", "round");
+          if (element.strokeStyle !== "solid") {
+            node.setAttribute(
+              "stroke-dasharray",
+              element.strokeStyle === "dashed"
+                ? `8 ${8 + element.strokeWidth}`
+                : `1.5 ${6 + element.strokeWidth}`,
+            );
+          }
+        } else {
+          node = roughSVGDrawWithPrecision(
+            rsvg,
+            shape,
+            MAX_DECIMALS_FOR_SVG_EXPORT,
+          );
+        }
         if (opacity !== 1) {
           node.setAttribute("stroke-opacity", `${opacity}`);
           node.setAttribute("fill-opacity", `${opacity}`);

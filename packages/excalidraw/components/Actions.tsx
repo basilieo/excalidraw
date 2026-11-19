@@ -187,6 +187,10 @@ export const SelectedShapeActions = ({
 
       {predicates.arrowType && <>{renderAction("changeArrowType")}</>}
 
+      {/* job book (fork): only for connectors already drawn */}
+      {targetElements.some((el) => el.type === "arrow") &&
+        renderAction("changeLineJumps")}
+
       {predicates.text && (
         <>
           <fieldset>{renderAction("changeFontFamily")}</fieldset>

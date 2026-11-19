@@ -2483,3 +2483,78 @@ export const actionChangeArrowType = register<keyof typeof ARROW_TYPE>({
     );
   },
 });
+
+// job book (fork): line jumps, as Miro has them. A connector with jumps on
+// hops over the straight lines it crosses (see @excalidraw/element
+// lineJumps). Kept on the connector, in customData, so it saves and undoes
+// with it.
+const lineJumpsOffIcon = (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden="true">
+    <path d="M3 14h18M12 5v14" />
+  </svg>
+);
+const lineJumpsOnIcon = (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden="true">
+    <path d="M3 14h5.5a3.5 3.5 0 0 1 7 0H21M12 5v14" />
+  </svg>
+);
+
+export const actionChangeLineJumps = register<boolean>({
+  name: "changeLineJumps",
+  label: "Line jumps",
+  trackEvent: false,
+  perform: (elements, appState, value) => {
+    return {
+      elements: changeProperty(elements, appState, (el) => {
+        if (!isArrowElement(el)) {
+          return el;
+        }
+        const { lineJumps: _, ...rest } = (el.customData ?? {}) as Record<
+          string,
+          unknown
+        >;
+        return newElementWith(el, {
+          customData: value ? { ...rest, lineJumps: true } : rest,
+        });
+      }),
+      appState,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    };
+  },
+  PanelComponent: ({ elements, appState, updateData, app }) => (
+    <fieldset>
+      <legend>Line jumps</legend>
+      <div className="buttonList">
+        <RadioSelection
+          group="linejumps"
+          options={[
+            {
+              value: false,
+              text: "Cross straight through",
+              icon: lineJumpsOffIcon,
+              testId: "line-jumps-off",
+            },
+            {
+              value: true,
+              text: "Hop over lines it crosses",
+              icon: lineJumpsOnIcon,
+              testId: "line-jumps-on",
+            },
+          ]}
+          value={getFormValue(
+            elements,
+            app,
+            (element) =>
+              isArrowElement(element)
+                ? !!(element.customData as { lineJumps?: boolean } | undefined)
+                    ?.lineJumps
+                : null,
+            (element) => isArrowElement(element),
+            () => null,
+          )}
+          onChange={(value) => updateData(value)}
+        />
+      </div>
+    </fieldset>
+  ),
+});

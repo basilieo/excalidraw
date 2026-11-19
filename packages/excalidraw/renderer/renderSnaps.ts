@@ -13,6 +13,17 @@ const SNAP_COLOR_DARK_ZEN = "#da5b5b";
 const SNAP_WIDTH = 1;
 const SNAP_CROSS_SIZE = 2;
 
+/**
+ * job book (fork): how an equal-spacing guide writes its distance, from a
+ * length in scene px. Unset, the guides carry no numbers, as upstream.
+ */
+let snapDistanceFormat: ((sceneDistance: number) => string) | null = null;
+export const setSnapDistanceFormat = (
+  format: ((sceneDistance: number) => string) | null,
+) => {
+  snapDistanceFormat = format;
+};
+
 export const renderSnaps = (
   context: CanvasRenderingContext2D,
   appState: InteractiveCanvasAppState,
@@ -54,6 +65,17 @@ export const renderSnaps = (
         appState,
         context,
       );
+      if (snapDistanceFormat && !appState.zenModeEnabled) {
+        drawGapLabel(
+          snapLine.points[0],
+          snapLine.points[1],
+          snapLine.direction,
+          snapDistanceFormat,
+          snapColor,
+          appState,
+          context,
+        );
+      }
     } else if (snapLine.type === "points") {
       context.lineWidth = snapWidth;
       context.strokeStyle = snapColor;
@@ -210,4 +232,52 @@ const drawGapLine = <Point extends LocalPoint | GlobalPoint>(
       drawLine(from, to, context);
     }
   }
+};
+
+/**
+ * job book (fork): the gap's length beside its middle mark, as Miro writes
+ * it: above a horizontal gap, left of a vertical one.
+ */
+const drawGapLabel = <Point extends LocalPoint | GlobalPoint>(
+  from: Point,
+  to: Point,
+  direction: "horizontal" | "vertical",
+  format: (sceneDistance: number) => string,
+  color: string,
+  appState: InteractiveCanvasAppState,
+  context: CanvasRenderingContext2D,
+) => {
+  const distance =
+    direction === "horizontal"
+      ? Math.abs(to[0] - from[0])
+      : Math.abs(to[1] - from[1]);
+  const text = format(distance);
+  if (!text) {
+    return;
+  }
+  const zoom = appState.zoom.value;
+  const size = 11 / zoom;
+  const pad = 2 / zoom;
+  const gap = 8 / zoom;
+  context.save();
+  context.font = `600 ${size}px Helvetica, Arial, sans-serif`;
+  const width = context.measureText(text).width;
+  let x: number;
+  let y: number;
+  if (direction === "horizontal") {
+    x = (from[0] + to[0]) / 2 - width / 2;
+    y = from[1] - gap - size;
+  } else {
+    x = from[0] - gap - width;
+    y = (from[1] + to[1]) / 2 - size / 2;
+  }
+  context.fillStyle =
+    appState.theme === THEME.LIGHT
+      ? "rgba(255, 255, 255, 0.85)"
+      : "rgba(18, 18, 18, 0.85)";
+  context.fillRect(x - pad, y - pad, width + pad * 2, size + pad * 2);
+  context.fillStyle = color;
+  context.textBaseline = "top";
+  context.fillText(text, x, y);
+  context.restore();
 };

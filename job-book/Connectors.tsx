@@ -3,6 +3,11 @@
 // dot to another shape and you get an arrow bound to both, in the board's
 // connector style (curved, elbow or straight).
 //
+// Click a dot instead, without dragging, and you get Miro's quick add: a
+// copy of the shape (same size and style, no text) on that side, clear of
+// what is already there, joined by a connector and selected. That is the
+// editor's own flowchart step (⌘ + arrow key), not reimplemented here.
+//
 // The arrow is Excalidraw's own. Pressing a dot switches to the arrow tool
 // and starts the arrow at that side of the shape, then the drag carries on
 // as an ordinary arrow drag, so binding, elbow routing and arrows following
@@ -33,7 +38,19 @@ const CONNECTABLE = new Set([
 const OUT = 22;
 
 type Side = "n" | "e" | "s" | "w";
-type Dot = { side: Side; x: number; y: number; edgeX: number; edgeY: number };
+type Dot = {
+  /** the shape the dot is on */
+  id: string;
+  side: Side;
+  x: number;
+  y: number;
+  edgeX: number;
+  edgeY: number;
+};
+
+const DIRECTION = { n: "up", e: "right", s: "down", w: "left" } as const;
+/** how far the pointer goes, in screen px, before a press is a drag */
+const DRAG_START = 4;
 
 const dotsFor = (el: ExcalidrawElement, appState: AppState): Dot[] => {
   const v = (sceneX: number, sceneY: number) =>
@@ -49,6 +66,7 @@ const dotsFor = (el: ExcalidrawElement, appState: AppState): Dot[] => {
   return sides.map(([side, sx, sy, dx, dy]) => {
     const edge = v(sx, sy);
     return {
+      id: el.id,
       side,
       x: edge.x + dx * OUT,
       y: edge.y + dy * OUT,
@@ -195,17 +213,13 @@ export const Connectors = () => {
     return null;
   }
 
-  const start = (dot: Dot, event: React.PointerEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    busy.current = true;
-    setDots([]);
+  /** draw a connector from this dot: the press, handed to the arrow tool */
+  const beginDrag = (dot: Dot, pointerId: number, pointerType: string) => {
     // the arrow is whatever type was last picked for arrows
     api.setActiveTool({ type: "arrow" });
     const canvas = document.querySelector<HTMLCanvasElement>(
       ".excalidraw__canvas.interactive",
     );
-    const { pointerId, pointerType } = event;
     // once the editor has switched tools, it gets the press at the shape's
     // edge, and the drag already under way carries on from there
     window.setTimeout(() => {
@@ -230,6 +244,40 @@ export const Connectors = () => {
     }, 0);
   };
 
+  // a press on a dot is a drag once the pointer moves, a click if it lets go
+  // first
+  const start = (dot: Dot, event: React.PointerEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    busy.current = true;
+    const { pointerId, pointerType, clientX, clientY } = event;
+    const stop = () => {
+      window.removeEventListener("pointermove", move, true);
+      window.removeEventListener("pointerup", up, true);
+    };
+    const move = (e: PointerEvent) => {
+      if (
+        e.pointerId === pointerId &&
+        Math.hypot(e.clientX - clientX, e.clientY - clientY) > DRAG_START
+      ) {
+        stop();
+        setDots([]);
+        beginDrag(dot, pointerId, pointerType);
+      }
+    };
+    const up = (e: PointerEvent) => {
+      if (e.pointerId !== pointerId) {
+        return;
+      }
+      stop();
+      busy.current = false;
+      // the new shape is selected, and the dots move onto it
+      api.addFlowchartNode(dot.id, DIRECTION[dot.side]);
+    };
+    window.addEventListener("pointermove", move, true);
+    window.addEventListener("pointerup", up, true);
+  };
+
   return (
     <div className="jb-connectors" aria-hidden="true">
       {dots.map((dot) => (
@@ -239,7 +287,7 @@ export const Connectors = () => {
           tabIndex={-1}
           className={`jb-dot jb-dot-${dot.side}`}
           style={{ left: dot.x, top: dot.y }}
-          title="Drag to another shape to connect"
+          title="Click for a connected copy, or drag to another shape to connect"
           onPointerDown={(e) => start(dot, e)}
         />
       ))}

@@ -593,3 +593,6 @@ export function useExcalidrawStateValue(
 export { _useOnAppStateChange as useOnExcalidrawStateChange };
 
 export { applyDarkModeFilter, getStrokeWidthByKey };
+
+// job book (fork): numbers on the equal-spacing guides
+export { setSnapDistanceFormat } from "./renderer/renderSnaps";

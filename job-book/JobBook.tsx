@@ -7,6 +7,7 @@ import {
   Footer,
   MainMenu,
   newElementWith,
+  setSnapDistanceFormat,
   Sidebar,
   THEME,
   useExcalidrawAPI,
@@ -34,6 +35,7 @@ import { SelectionFilterButton, useSelectionFilter } from "./SelectionFilter";
 import { PrintHost } from "./PrintDialog";
 import { hiddenFrames, useBoardForHidden, useHiddenGroups } from "./hidden";
 import { CommentButton, CommentLayer } from "./comments/CommentLayer";
+import { formatLength } from "./paper";
 
 /** home: back to the job books */
 const BackIcon = (
@@ -115,6 +117,9 @@ const DRAWING_DEFAULTS: Partial<AppState> = {
   currentItemFontFamily: FONT_FAMILY.Helvetica,
   currentItemRoughness: 0,
   viewBackgroundColor: "#ffffff",
+  // boxes snap to each other's edges and to equal spacing while dragged,
+  // as on Miro; ⌘ held while dragging, or Alt+S, turns it off
+  objectsSnapModeEnabled: true,
 };
 
 const SAVED_APP_STATE = [
@@ -122,6 +127,7 @@ const SAVED_APP_STATE = [
   "gridSize",
   "gridStep",
   "gridModeEnabled",
+  "objectsSnapModeEnabled",
   "currentItemFontFamily",
   "currentItemRoughness",
   "currentItemStrokeColor",
@@ -267,6 +273,16 @@ const Editor = ({
   const lockedSheets = useRef(new Map());
   const inputDevice = useRef(readInputDevice());
   const [settings, setSettings] = useState<BoardSettings>(DEFAULT_SETTINGS);
+  // the spacing guides write their distance in the board's units
+  useEffect(() => {
+    setSnapDistanceFormat(
+      (px) =>
+        `${formatLength(px, settings.units)}${
+          settings.units === "in" ? '"' : " mm"
+        }`,
+    );
+    return () => setSnapDistanceFormat(null);
+  }, [settings.units]);
   const [tableView, setTableView] = useState(false);
   const settingsRef = useRef<BoardSettings>(DEFAULT_SETTINGS);
 

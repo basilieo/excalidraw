@@ -74,6 +74,7 @@ export type ActionName =
   | "changeStrokeStyle"
   | "changeArrowhead"
   | "changeArrowType"
+  | "changeLineJumps"
   | "changeArrowProperties"
   | "changeOpacity"
   | "changeFontSize"

@@ -44,6 +44,28 @@ export class AppFlowchart {
     return this.creator.isCreatingChart;
   }
 
+  /**
+   * job book (fork): one connected copy of a node, made at once rather than
+   * previewed while a key is held (a click on a connector dot)
+   */
+  addNode = (elementId: ExcalidrawElement["id"], direction: LinkDirection) => {
+    const node = this.app.scene.getNonDeletedElementsMap().get(elementId);
+    if (!node || !isFlowchartNodeElement(node)) {
+      return false;
+    }
+    this.creator.clear();
+    this.creator.createNodes(node, this.app.state, direction, this.app.scene);
+    const nodes = this.creator.pendingNodes ?? [];
+    this.creator.clear();
+    if (!nodes.length) {
+      return false;
+    }
+    this.app.insertNewElements(nodes);
+    this.selectAndReveal(nodes[0]);
+    this.captureUpdate();
+    return true;
+  };
+
   /** ends any in-progress flowchart creation/navigation session */
   clear = () => {
     this.creator.clear();

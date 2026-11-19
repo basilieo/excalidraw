@@ -831,6 +831,8 @@ class App extends React.Component<AppProps, AppState> {
       resetCursor: this.cursor.reset,
       getEditorInterface: () => this.editorInterface,
       updateFrameRendering: this.updateFrameRendering,
+      addFlowchartNode: (elementId, direction) =>
+        this.flowchart.addNode(elementId, direction),
       toggleSidebar: this.toggleSidebar,
       onChange: (cb) => this.onChangeEmitter.on(cb),
       onIncrement: (cb) => this.store.onStoreIncrementEmitter.on(cb),

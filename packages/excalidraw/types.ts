@@ -1537,6 +1537,17 @@ export interface ExcalidrawImperativeAPI {
    * used in conjunction with view mode (props.viewModeEnabled).
    */
   updateFrameRendering: InstanceType<typeof App>["updateFrameRendering"];
+  /**
+   * job book (fork): Miro's quick add. A copy of a shape (same type, size
+   * and style, no text) placed beside it in `direction`, clear of the shapes
+   * already there, joined to it by an elbow connector, and selected; as
+   * ⌘ + arrow key does for the selected shape. False if the element can't
+   * be a flowchart node.
+   */
+  addFlowchartNode: (
+    elementId: ExcalidrawElement["id"],
+    direction: "up" | "down" | "left" | "right",
+  ) => boolean;
   onChange: (
     callback: (
       elements: readonly ExcalidrawElement[],

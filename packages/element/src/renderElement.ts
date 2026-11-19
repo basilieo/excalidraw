@@ -60,6 +60,12 @@ import {
 } from "./textElement";
 import { getLineHeightInPx } from "./textMeasurements";
 import {
+  getLineJumps,
+  lineJumpsPath,
+  lineJumpsEnabled,
+  lineJumpsKey,
+} from "./lineJumps";
+import {
   isTextElement,
   isLinearElement,
   isFreeDrawElement,
@@ -81,6 +87,7 @@ import {
 } from "./stickyNote";
 
 import type { RenderEnvironment } from "./renderEnvironment";
+import type { LineJump } from "./lineJumps";
 
 import type {
   ExcalidrawElement,
@@ -218,7 +225,16 @@ export interface ExcalidrawElementWithCanvas {
   canvasOffsetY: number;
   imageCrop: ExcalidrawImageElement["crop"] | null;
   containingFrameOpacity: number;
+  /** job book (fork): where the line jumps were when this was drawn */
+  lineJumpsKey?: string;
 }
+
+/**
+ * job book (fork): the hops a connector is about to be drawn with, handed
+ * from where the scene is known to the drawing code, which only sees the
+ * element.
+ */
+const jumpsToDraw = new WeakMap<ExcalidrawElement, LineJump[]>();
 
 const cappedElementCanvasSize = (
   element: NonDeletedExcalidrawElement,
@@ -534,11 +550,41 @@ const drawElementOnCanvas = (
       context.lineJoin = "round";
       context.lineCap = "round";
 
-      ShapeCache.generateElementShape(element, renderConfig).forEach(
-        (shape) => {
+      const shapes = ShapeCache.generateElementShape(element, renderConfig);
+      // job book (fork): a connector that hops over the lines it crosses.
+      // The line is drawn here, with its hops; the arrowheads as usual.
+      const jumps = jumpsToDraw.get(element);
+      if (jumps?.length && isLinearElement(element)) {
+        withSavedContext(context, () => {
+          const t = context.getTransform?.();
+          const scale = t ? Math.hypot(t.a, t.b) : 1;
+          const width =
+            element.strokeStyle !== "solid"
+              ? element.strokeWidth + 0.5
+              : element.strokeWidth;
+          context.lineWidth = Math.max(width, scale > 0 ? 0.9 / scale : 0);
+          context.strokeStyle = applyDarkModeFilter(
+            element.strokeColor,
+            renderConfig.theme === THEME.DARK,
+          );
+          context.setLineDash(
+            element.strokeStyle === "dashed"
+              ? [8, 8 + element.strokeWidth]
+              : element.strokeStyle === "dotted"
+              ? [1.5, 6 + element.strokeWidth]
+              : [],
+          );
+          const createPath = getCreatePath(renderConfig.renderEnvironment);
+          context.stroke(createPath(lineJumpsPath(element, jumps)));
+        });
+        shapes.slice(1).forEach((shape) => {
           drawVisible(rc, context, shape);
-        },
-      );
+        });
+        break;
+      }
+      shapes.forEach((shape) => {
+        drawVisible(rc, context, shape);
+      });
       break;
     }
     case "freedraw": {
@@ -766,8 +812,16 @@ const generateElementWithCanvas = (
   const containingFrameOpacity =
     getContainingFrame(element, elementsMap)?.opacity || 100;
 
+  // job book (fork): a connector with line jumps is redrawn when a line it
+  // crosses moves, not only when it does
+  const jumps = lineJumpsEnabled(element)
+    ? getLineJumps(element, elementsMap)
+    : null;
+  const jumpsKey = jumps ? lineJumpsKey(jumps) : "";
+
   if (
     !prevElementWithCanvas ||
+    (prevElementWithCanvas.lineJumpsKey ?? "") !== jumpsKey ||
     shouldRegenerateBecauseZoom ||
     prevElementWithCanvas.theme !== appState.theme ||
     prevElementWithCanvas.deviceScale !== renderConfig.scale ||
@@ -775,6 +829,9 @@ const generateElementWithCanvas = (
     prevElementWithCanvas.imageCrop !== imageCrop ||
     prevElementWithCanvas.containingFrameOpacity !== containingFrameOpacity
   ) {
+    if (jumps) {
+      jumpsToDraw.set(element, jumps);
+    }
     const elementWithCanvas = generateElementCanvas(
       element,
       elementsMap,
@@ -782,11 +839,13 @@ const generateElementWithCanvas = (
       renderConfig,
       appState,
     );
+    jumpsToDraw.delete(element);
 
     if (!elementWithCanvas) {
       return null;
     }
 
+    elementWithCanvas.lineJumpsKey = jumpsKey;
     elementWithCanvasCache.set(element, elementWithCanvas);
 
     return elementWithCanvas;
@@ -1201,6 +1260,9 @@ const drawElement = (
     case "iframe":
     case "embeddable": {
       if (renderConfig.isExporting) {
+        if (lineJumpsEnabled(element)) {
+          jumpsToDraw.set(element, getLineJumps(element, allElementsMap));
+        }
         const [x1, y1, x2, y2] = getElementAbsoluteCoords(element, elementsMap);
         const centerX = (x1 + x2) / 2;
         const centerY = (y1 + y2) / 2;
